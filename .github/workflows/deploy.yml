@@ -28,4 +28,4 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
 
       - name: Deploy to Cloudflare
-        run: bun wrangler publish --env production
+        run: bun wrangler deploy --env production
