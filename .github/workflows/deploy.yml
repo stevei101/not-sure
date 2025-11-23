@@ -22,10 +22,7 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Authenticate with Cloudflare
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-
       - name: Deploy to Cloudflare
-        run: bun wrangler deploy --env production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: bun wrangler deploy
