@@ -80,7 +80,9 @@ async function callGemini(prompt: string, model: "gemini-pro" | "gemini-flash", 
 		throw new Error("Gemini API key not configured");
 	}
 
-	const modelName = model === "gemini-pro" ? "gemini-1.5-pro" : "gemini-1.5-flash";
+	const modelName = model === "gemini-pro" ? "gemini-1.5-pro-latest" : "gemini-1.5-flash-latest";
+
+	// Try AI Studio API (simpler setup)
 	const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${env.GEMINI_API_KEY}`;
 
 	const response = await fetch(url, {
@@ -94,7 +96,16 @@ async function callGemini(prompt: string, model: "gemini-pro" | "gemini-flash", 
 	});
 
 	if (!response.ok) {
-		throw new Error(`Gemini API error: ${response.statusText}`);
+		const errorText = await response.text();
+		// Provide helpful error message
+		if (response.status === 401 || response.status === 403) {
+			throw new Error(
+				`Gemini API authentication failed. ` +
+				`Please ensure you're using an API key from https://aistudio.google.com/app/apikey ` +
+				`(not a service account key). Error: ${errorText}`
+			);
+		}
+		throw new Error(`Gemini API error (${response.status}): ${errorText}`);
 	}
 
 	const data: any = await response.json();
