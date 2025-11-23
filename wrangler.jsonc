@@ -23,6 +23,15 @@
 			"id": "f6f89996bdfc40048e31ed392167db32"
 		}
 	],
+	"r2_buckets": [
+		{
+			"binding": "not_sure_assets",
+			"bucket_name": "not-sure-assets"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

@@ -28,6 +28,16 @@ async function hashPrompt(prompt: string): Promise<string> {
 export default {
 	async fetch(request: Request, env: Env) {
 		const url = new URL(request.url);
+
+		// Health-check endpoint
+		if (request.method === "GET" && url.pathname === "/status") {
+			return new Response(
+				JSON.stringify({ ok: true, version: "1.0.0", timestamp: new Date().toISOString() }),
+				{ headers: { "Content-Type": "application/json" } }
+			);
+		}
+
+		// RAG query endpoint
 		if (request.method !== "POST" || url.pathname !== "/query") {
 			return new Response("Only POST /query is supported", { status: 404 });
 		}
@@ -43,26 +53,39 @@ export default {
 			return new Response('Missing "prompt" field', { status: 400 });
 		}
 
-		// 1️⃣ Try cached context from KV
-		const key = await hashPrompt(prompt);
-		const cached = await env.RAG_KV.get(key);
+		try {
+			// 1️⃣ Try cached context from KV
+			const key = await hashPrompt(prompt);
+			const cached = await env.RAG_KV.get(key);
 
-		// 2️⃣ Build messages for the model
-		const messages = [
-			{ role: "system", content: "You are a helpful AI assistant." },
-			...(cached ? [{ role: "assistant", content: cached }] : []),
-			{ role: "user", content: prompt },
-		];
+			// If cached, return immediately
+			if (cached) {
+				return new Response(JSON.stringify({ answer: cached, cached: true }), {
+					headers: { "Content-Type": "application/json" },
+				});
+			}
 
-		// 3️⃣ Call the AI model
-		const result = await env.AI.run("@cf/meta/llama-2-7b-chat-fp16", { messages });
-		const answer = (result as any)?.response ?? "";
+			// 2️⃣ Build messages for the model
+			const messages = [
+				{ role: "system", content: "You are a helpful AI assistant." },
+				{ role: "user", content: prompt },
+			];
 
-		// 4️⃣ Cache the answer for future identical prompts (1‑week TTL)
-		await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+			// 3️⃣ Call the AI model
+			const result = await env.AI.run("@cf/meta/llama-2-7b-chat-fp16", { messages });
+			const answer = (result as any)?.response ?? "";
 
-		return new Response(JSON.stringify({ answer }), {
-			headers: { "Content-Type": "application/json" },
-		});
+			// 4️⃣ Cache the answer for future identical prompts (1‑week TTL)
+			await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+
+			return new Response(JSON.stringify({ answer, cached: false }), {
+				headers: { "Content-Type": "application/json" },
+			});
+		} catch (error: any) {
+			return new Response(
+				JSON.stringify({ error: error.message || "Internal server error" }),
+				{ status: 500, headers: { "Content-Type": "application/json" } }
+			);
+		}
 	},
 } satisfies ExportedHandler<Env>;
