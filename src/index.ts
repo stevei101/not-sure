@@ -115,17 +115,20 @@ async function callOpenAI(prompt: string, env: Env): Promise<string> {
 /** Call Google Gemini API */
 async function callGemini(prompt: string, model: "gemini-pro" | "gemini-flash", env: Env): Promise<string> {
 	if (!env.GEMINI_API_KEY) {
-		throw new Error("Gemini API key not configured");
+		throw new Error("Gemini API key not configured. Add GEMINI_API_KEY secret with key from https://aistudio.google.com/app/apikey");
 	}
 
 	const modelName = model === "gemini-pro" ? "gemini-1.5-pro-latest" : "gemini-1.5-flash-latest";
 
-	// Use v1 endpoint (not v1beta) for API key authentication
-	const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${env.GEMINI_API_KEY}`;
+	// Use v1 endpoint with header authentication
+	const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent`;
 
 	const response = await fetch(url, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: {
+			"Content-Type": "application/json",
+			"x-goog-api-key": env.GEMINI_API_KEY
+		},
 		body: JSON.stringify({
 			contents: [{
 				parts: [{ text: prompt }]
@@ -135,15 +138,11 @@ async function callGemini(prompt: string, model: "gemini-pro" | "gemini-flash", 
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		// Provide helpful error message
-		if (response.status === 401 || response.status === 403) {
-			throw new Error(
-				`Gemini API authentication failed. ` +
-				`Please ensure you're using an API key from https://aistudio.google.com/app/apikey ` +
-				`(not a service account key). Error: ${errorText}`
-			);
-		}
-		throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+		throw new Error(
+			`Gemini API failed (${response.status}). ` +
+			`Verify you're using an AI Studio key from https://aistudio.google.com/app/apikey ` +
+			`Error: ${errorText}`
+		);
 	}
 
 	const data: any = await response.json();
