@@ -82,8 +82,8 @@ async function callGemini(prompt: string, model: "gemini-pro" | "gemini-flash", 
 
 	const modelName = model === "gemini-pro" ? "gemini-1.5-pro-latest" : "gemini-1.5-flash-latest";
 
-	// Try AI Studio API (simpler setup)
-	const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${env.GEMINI_API_KEY}`;
+	// Use v1 endpoint (not v1beta) for API key authentication
+	const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${env.GEMINI_API_KEY}`;
 
 	const response = await fetch(url, {
 		method: "POST",
