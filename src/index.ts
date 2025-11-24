@@ -3,30 +3,27 @@
  * 
  * Supports:
  * - Cloudflare AI (Llama 2 7B)
- * - OpenAI (GPT-4o-mini, GPT-4)
- * - Google Gemini (Pro, Flash)
  * 
  * POST /query
  * {
  *   "prompt": "your question",
- *   "model": "cloudflare" | "openai" | "gemini-pro" | "gemini-flash"
+ *   "model": "cloudflare"
  * }
  */
 
 import { Ai } from "@cloudflare/ai";
 
-type AIModel = "cloudflare" | "openai" | "gemini-pro" | "gemini-flash";
+type AIModel = "cloudflare";
 
 export interface Env {
 	AI: Ai;
 	RAG_KV: KVNamespace;
-	OPENAI_API_KEY?: string;
-	GEMINI_API_KEY?: string;
 	CLOUDFLARE_API_TOKEN?: string;
 	ACCOUNT_ID: string;
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
+
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -47,6 +44,7 @@ function getGatewayUrl(provider: string, env: Env): string {
 	if (env.AI_GATEWAY_SKIP_PATH_CONSTRUCTION === "true") {
 		return `${env.AI_GATEWAY_URL}/${provider}`;
 	}
+
 	return `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/${env.AI_GATEWAY_ID}/${provider}`;
 }
 
@@ -78,88 +76,11 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 	return data.result?.response ?? data.response ?? "";
 }
 
-/** Call OpenAI API */
-async function callOpenAI(prompt: string, env: Env): Promise<string> {
-	if (!env.OPENAI_API_KEY) {
-		throw new Error("OpenAI API key not configured");
-	}
-
-	// OpenAI via Gateway
-	const gatewayUrl = getGatewayUrl("openai", env);
-	const url = `${gatewayUrl}/chat/completions`;
-
-	const response = await fetch(url, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-		},
-		body: JSON.stringify({
-			model: "gpt-4o-mini",
-			messages: [
-				{ role: "system", content: "You are a helpful AI assistant." },
-				{ role: "user", content: prompt },
-			],
-		}),
-	});
-
-	if (!response.ok) {
-		throw new Error(`OpenAI API error: ${response.statusText}`);
-	}
-
-	const data: any = await response.json();
-	return data.choices?.[0]?.message?.content ?? "";
-}
-
-/** Call Google Gemini API */
-async function callGemini(prompt: string, model: "gemini-pro" | "gemini-flash", env: Env): Promise<string> {
-	if (!env.GEMINI_API_KEY) {
-		throw new Error("Gemini API key not configured");
-	}
-
-	const modelName = model === "gemini-pro" ? "gemini-1.5-pro-latest" : "gemini-1.5-flash-latest";
-
-	// Use v1 endpoint (not v1beta) for API key authentication
-	const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${env.GEMINI_API_KEY}`;
-
-	const response = await fetch(url, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			contents: [{
-				parts: [{ text: prompt }]
-			}],
-		}),
-	});
-
-	if (!response.ok) {
-		const errorText = await response.text();
-		// Provide helpful error message
-		if (response.status === 401 || response.status === 403) {
-			throw new Error(
-				`Gemini API authentication failed. ` +
-				`Please ensure you're using an API key from https://aistudio.google.com/app/apikey ` +
-				`(not a service account key). Error: ${errorText}`
-			);
-		}
-		throw new Error(`Gemini API error (${response.status}): ${errorText}`);
-	}
-
-	const data: any = await response.json();
-	return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-}
-
 /** Route to the appropriate AI model */
 async function callAI(prompt: string, model: AIModel, env: Env): Promise<string> {
 	switch (model) {
 		case "cloudflare":
 			return callCloudflareAI(prompt, env);
-		case "openai":
-			return callOpenAI(prompt, env);
-		case "gemini-pro":
-			return callGemini(prompt, "gemini-pro", env);
-		case "gemini-flash":
-			return callGemini(prompt, "gemini-flash", env);
 		default:
 			throw new Error(`Unknown model: ${model}`);
 	}
@@ -174,11 +95,12 @@ export default {
 			return new Response(
 				JSON.stringify({
 					ok: true,
-					version: "2.0.0",
+					version: "2.1.0",
 					timestamp: new Date().toISOString(),
-					models: ["cloudflare", "openai", "gemini-pro", "gemini-flash"],
+					models: ["cloudflare"],
 					gatewayId: env.AI_GATEWAY_ID,
 					gatewayUrl: getGatewayUrl("test", env) // return constructed URL for verification
+
 				}),
 				{ headers: { "Content-Type": "application/json" } }
 			);
@@ -204,7 +126,7 @@ export default {
 		}
 
 		// Validate model
-		const validModels: AIModel[] = ["cloudflare", "openai", "gemini-pro", "gemini-flash"];
+		const validModels: AIModel[] = ["cloudflare"];
 		if (!validModels.includes(model)) {
 			return new Response(
 				JSON.stringify({ error: `Invalid model. Choose from: ${validModels.join(", ")}` }),
