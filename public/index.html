@@ -1,32 +1,53 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Hello, World!</title>
-	</head>
-	<body>
-		<h1 id="heading"></h1>
-		<p>This page comes from a static asset stored at `public/index.html` as configured in `wrangler.jsonc`.</p>
-		<button id="button" type="button">Fetch a random UUID</button>
-		<output id="random" for="button"></output>
-		<script>
-			fetch('/message')
-				.then((resp) => resp.text())
-				.then((text) => {
-					const h1 = document.getElementById('heading');
-					h1.textContent = text;
-				});
 
-			const button = document.getElementById("button");
-			button.addEventListener("click", () => {
-				fetch('/random')
-					.then((resp) => resp.text())
-					.then((text) => {
-						const random = document.getElementById('random');
-						random.textContent = text;
-					});
-			});
-		</script>
-	</body>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Lornu AI</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+	<div class="app-container">
+		<header class="glass-header">
+			<div class="logo-container">
+				<img src="logo.jpg" alt="Lornu AI Logo" class="logo-img">
+				<div class="logo-text">Lornu<span class="highlight">.ai</span></div>
+			</div>
+			<div class="status-indicator">
+				<span class="dot"></span> Online
+			</div>
+		</header>
+
+		<main id="chat-container" class="chat-area">
+			<div class="welcome-message">
+				<h1>Welcome to Lornu AI</h1>
+				<p>Ask me anything. I'm powered by Cloudflare Workers AI.</p>
+			</div>
+		</main>
+
+		<footer class="input-area glass-footer">
+			<form id="chat-form">
+				<input type="text" id="prompt-input" placeholder="Type your message..." autocomplete="off">
+				<button type="submit" id="send-btn" aria-label="Send message">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon-send">
+						<path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+					</svg>
+				</button>
+			</form>
+		</footer>
+	</div>
+	<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"
+		integrity="sha384-NNQgBjjuhtXzPmmy4gurS5X7P4uTt1DThyevz4Ua0IVK5+kazYQI1W27JHjbbxQz"
+		crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"
+		integrity="sha384-3HPB1XT51W3gGRxAmZ+qbZwRpRlFQL632y8x+adAqCr4Wp3TaWwCLSTAJJKbyWEK"
+		crossorigin="anonymous"></script>
+	<script src="script.js"></script>
+</body>
+
 </html>

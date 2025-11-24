@@ -22,6 +22,8 @@ export interface Env {
 	ACCOUNT_ID: string;
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
+	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
+
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -37,6 +39,12 @@ async function hashPrompt(prompt: string, model: string): Promise<string> {
 
 /** Helper: Construct Gateway URL */
 function getGatewayUrl(provider: string, env: Env): string {
+	// If the user has a custom domain that already includes the account/gateway mapping,
+	// they can set AI_GATEWAY_SKIP_PATH_CONSTRUCTION to "true".
+	if (env.AI_GATEWAY_SKIP_PATH_CONSTRUCTION === "true") {
+		return `${env.AI_GATEWAY_URL}/${provider}`;
+	}
+
 	return `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/${env.AI_GATEWAY_ID}/${provider}`;
 }
 
@@ -90,7 +98,9 @@ export default {
 					version: "2.1.0",
 					timestamp: new Date().toISOString(),
 					models: ["cloudflare"],
-					gatewayId: env.AI_GATEWAY_ID
+					gatewayId: env.AI_GATEWAY_ID,
+					gatewayUrl: getGatewayUrl("test", env) // return constructed URL for verification
+
 				}),
 				{ headers: { "Content-Type": "application/json" } }
 			);
