@@ -39,8 +39,8 @@ async function hashPrompt(prompt: string, model: string): Promise<string> {
 
 /** Helper: Construct Gateway URL */
 function getGatewayUrl(provider: string, env: Env): string {
-	// If the user has a custom domain that already includes the account/gateway mapping,
-	// they can set AI_GATEWAY_SKIP_PATH_CONSTRUCTION to "true".
+	// Set to "true" if using a custom domain that already routes to your specific gateway instance.
+	// In this mode, only the provider name (e.g., "openai", "workers-ai") is appended to AI_GATEWAY_URL.
 	if (env.AI_GATEWAY_SKIP_PATH_CONSTRUCTION === "true") {
 		return `${env.AI_GATEWAY_URL}/${provider}`;
 	}
@@ -100,7 +100,6 @@ export default {
 					models: ["cloudflare"],
 					gatewayId: env.AI_GATEWAY_ID,
 					gatewayUrl: getGatewayUrl("test", env) // return constructed URL for verification
-
 				}),
 				{ headers: { "Content-Type": "application/json" } }
 			);
