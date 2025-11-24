@@ -22,6 +22,11 @@ export interface Env {
 	RAG_KV: KVNamespace;
 	OPENAI_API_KEY?: string;
 	GEMINI_API_KEY?: string;
+	CLOUDFLARE_API_TOKEN?: string;
+	ACCOUNT_ID: string;
+	AI_GATEWAY_ID: string;
+	AI_GATEWAY_URL: string;
+	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -35,14 +40,42 @@ async function hashPrompt(prompt: string, model: string): Promise<string> {
 		.join("");
 }
 
+/** Helper: Construct Gateway URL */
+function getGatewayUrl(provider: string, env: Env): string {
+	// If the user has a custom domain that already includes the account/gateway mapping,
+	// they can set AI_GATEWAY_SKIP_PATH_CONSTRUCTION to "true".
+	if (env.AI_GATEWAY_SKIP_PATH_CONSTRUCTION === "true") {
+		return `${env.AI_GATEWAY_URL}/${provider}`;
+	}
+	return `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/${env.AI_GATEWAY_ID}/${provider}`;
+}
+
 /** Call Cloudflare AI */
 async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 	const messages = [
 		{ role: "system", content: "You are a helpful AI assistant." },
 		{ role: "user", content: prompt },
 	];
-	const result = await env.AI.run("@cf/meta/llama-2-7b-chat-fp16", { messages });
-	return (result as any)?.response ?? "";
+
+	// Using REST API via Gateway as per requirements
+	const gatewayEndpoint = `${getGatewayUrl("workers-ai", env)}/@cf/meta/llama-2-7b-chat-fp16`;
+
+	const response = await fetch(gatewayEndpoint, {
+		method: "POST",
+		headers: {
+			"Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify({ messages })
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
+	}
+
+	const data: any = await response.json();
+	return data.result?.response ?? data.response ?? "";
 }
 
 /** Call OpenAI API */
@@ -51,7 +84,11 @@ async function callOpenAI(prompt: string, env: Env): Promise<string> {
 		throw new Error("OpenAI API key not configured");
 	}
 
-	const response = await fetch("https://api.openai.com/v1/chat/completions", {
+	// OpenAI via Gateway
+	const gatewayUrl = getGatewayUrl("openai", env);
+	const url = `${gatewayUrl}/chat/completions`;
+
+	const response = await fetch(url, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
@@ -139,7 +176,9 @@ export default {
 					ok: true,
 					version: "2.0.0",
 					timestamp: new Date().toISOString(),
-					models: ["cloudflare", "openai", "gemini-pro", "gemini-flash"]
+					models: ["cloudflare", "openai", "gemini-pro", "gemini-flash"],
+					gatewayId: env.AI_GATEWAY_ID,
+					gatewayUrl: getGatewayUrl("test", env) // return constructed URL for verification
 				}),
 				{ headers: { "Content-Type": "application/json" } }
 			);
