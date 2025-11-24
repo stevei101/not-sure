@@ -72,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
         contentDiv.classList.add('message-content');
 
         if (sender === 'ai') {
-            // Parse Markdown for AI responses
-            contentDiv.innerHTML = marked.parse(text);
+            // Parse Markdown for AI responses and sanitize HTML
+            contentDiv.innerHTML = DOMPurify.sanitize(marked.parse(text));
         } else {
             contentDiv.textContent = text;
         }
