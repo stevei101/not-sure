@@ -25,6 +25,9 @@ jobs:
       - name: Run tests
         run: bun run test
 
+      - name: Build React app
+        run: bun run build
+
       - name: Deploy to Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
