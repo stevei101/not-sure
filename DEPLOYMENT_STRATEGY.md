@@ -99,20 +99,25 @@ The Worker serves:
 - **API Endpoints**: `/query` (RAG), `/status` (health check)
 - **Routes**: `lornu.ai`, `www.lornu.ai`
 
-## ⚠️ Cloudflare Pages Build Configuration
+## ⚠️ Deployment Method: GitHub Actions Only
 
-If you're using **Cloudflare Pages** for deployment (instead of GitHub Actions), you **must** update the build settings in the Cloudflare dashboard:
+**This project uses GitHub Actions for deployment** - do NOT enable Cloudflare Pages auto-deployment.
 
-**Required Settings:**
-- **Build command**: `bun run build` (NOT `bun install`)
-- **Build output directory**: `dist`
+**Current Setup:**
+- ✅ **Staging**: Auto-deploys via GitHub Actions on `develop` branch
+- ✅ **Production**: Auto-deploys via GitHub Actions on `main` branch
+- ✅ Both use `wrangler deploy` to Cloudflare Workers
 
-See `CLOUDFLARE_PAGES_BUILD.md` for detailed instructions.
+**If you see Cloudflare Pages errors:**
+- Disable Cloudflare Pages auto-deployment in the dashboard
+- Use GitHub Actions workflows instead (already configured)
+- See `CLOUDFLARE_PAGES_BUILD.md` for details
 
-**Why this matters:**
-- `bun install` only installs dependencies, doesn't build the app
-- `bun run build` creates the `dist/` directory with the React app
-- Without `dist/`, Wrangler can't find assets to deploy
+**Why GitHub Actions:**
+- ✅ Single deployment method (no conflicts)
+- ✅ Full control over build and deploy process
+- ✅ Consistent CI/CD pipeline
+- ✅ Better integration with GitHub
 
 ## Rollback Plan
 

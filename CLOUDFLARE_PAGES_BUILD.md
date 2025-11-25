@@ -1,8 +1,14 @@
 # Cloudflare Pages Build Configuration
 
-## ⚠️ Important: Build Settings
+## ⚠️ Important: Single Deployment Method
 
-If you're deploying via **Cloudflare Pages** (not just Workers), you need to configure the build settings correctly in the Cloudflare dashboard.
+**This project uses GitHub Actions for deployment** - do NOT enable Cloudflare Pages auto-deployment to avoid double deployments.
+
+If you see Cloudflare Pages build errors, **disable Pages auto-deployment** and use GitHub Actions instead.
+
+## If You Must Use Cloudflare Pages
+
+If you're deploying via **Cloudflare Pages** (not recommended - use GitHub Actions instead), you need to configure the build settings correctly in the Cloudflare dashboard.
 
 ## Required Build Settings
 
@@ -44,16 +50,26 @@ If the build command is set to `bun install`:
 4. Ensure **Build output directory** is: `dist`
 5. Save changes
 
-## Alternative: Use GitHub Actions (Recommended)
+## ✅ Recommended: Use GitHub Actions (Current Setup)
 
-Instead of Cloudflare Pages auto-deploy, use the GitHub Actions workflows:
-- **Staging**: `.github/workflows/deploy-staging.yml` (deploys on `develop`)
-- **Production**: `.github/workflows/deploy.yml` (deploys on `main`)
+**This project is configured to use GitHub Actions for deployment** - this is the recommended approach.
 
-These workflows:
+**Workflows:**
+- **Staging**: `.github/workflows/deploy-staging.yml` (auto-deploys on `develop` branch)
+- **Production**: `.github/workflows/deploy.yml` (auto-deploys on `main` branch)
+
+**Benefits:**
 - ✅ Run `bun run build` automatically
-- ✅ Deploy via `wrangler deploy`
-- ✅ More control over the deployment process
+- ✅ Deploy via `wrangler deploy` to Cloudflare Workers
+- ✅ Full control over the deployment process
+- ✅ No double deployments
+- ✅ Consistent with CI/CD best practices
+
+**To disable Cloudflare Pages auto-deployment:**
+1. Go to Cloudflare Dashboard → Pages → Your project
+2. Settings → Builds & deployments
+3. Disable "Auto-deploy from Git" or disconnect the Git integration
+4. Use GitHub Actions workflows instead
 
 ## Current Setup
 
