@@ -125,7 +125,13 @@ export default {
 		}
 
 		// RAG query endpoint
-		if (request.method === "POST" && url.pathname === "/query") {
+		if (url.pathname === "/query") {
+			if (request.method !== "POST") {
+				return new Response("Only POST /query is supported", { 
+					status: 404, 
+					headers: corsHeaders 
+				});
+			}
 			let body: any;
 			try {
 				body = await request.json();
