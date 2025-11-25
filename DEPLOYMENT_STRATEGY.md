@@ -22,16 +22,20 @@
 
 ## Recommended Deployment Options
 
-### Option 1: Preview/Staging Subdomain (Recommended)
+### Option 1: Preview/Staging Subdomain (Recommended) ✅ IMPLEMENTED
 Deploy to a staging subdomain first to test before production:
 
-1. **Create staging Worker**:
-   ```bash
-   # Create new wrangler config for staging
-   wrangler deploy --name not-sure-staging
-   ```
+**Configuration Files Created:**
+- `wrangler.staging.jsonc` - Staging Worker configuration
+- `.github/workflows/deploy-staging.yml` - Auto-deploy to staging on `develop` branch
 
-2. **Add staging route** to `wrangler.jsonc`:
+**Setup Steps:**
+
+1. **Configure DNS** (if using custom subdomain):
+   - Add `staging.lornu.ai` or `v2.lornu.ai` DNS record in Cloudflare
+   - Point to your Cloudflare account
+
+2. **Update staging routes** in `wrangler.staging.jsonc`:
    ```jsonc
    "routes": [
      {
@@ -40,8 +44,24 @@ Deploy to a staging subdomain first to test before production:
      }
    ]
    ```
+   Or use the default `workers.dev` subdomain: `not-sure-staging.*.workers.dev`
 
-3. **Test on staging** before merging to `main`
+3. **Deploy to staging**:
+   ```bash
+   # Manual deployment
+   bun run build
+   bun wrangler deploy --config wrangler.staging.jsonc
+   ```
+   
+   Or let CI/CD handle it (auto-deploys on `develop` branch pushes)
+
+4. **Test on staging** before merging to `main`
+
+**Benefits:**
+- ✅ Safe testing environment separate from production
+- ✅ Auto-deploys on `develop` branch (no manual steps)
+- ✅ Same codebase, isolated deployment
+- ✅ Can test with real RAG and AI Gateway
 
 ### Option 2: Cloudflare Workers Preview Deployments
 Use Wrangler's preview deployments:
