@@ -128,8 +128,11 @@ export default {
 		if (url.pathname === "/query") {
 			if (request.method !== "POST") {
 				return new Response("Only POST /query is supported", { 
-					status: 404, 
-					headers: corsHeaders 
+					status: 405, 
+					headers: { 
+						...corsHeaders,
+						"Allow": "POST"
+					} 
 				});
 			}
 			let body: any;
