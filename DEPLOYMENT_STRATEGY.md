@@ -99,6 +99,21 @@ The Worker serves:
 - **API Endpoints**: `/query` (RAG), `/status` (health check)
 - **Routes**: `lornu.ai`, `www.lornu.ai`
 
+## ⚠️ Cloudflare Pages Build Configuration
+
+If you're using **Cloudflare Pages** for deployment (instead of GitHub Actions), you **must** update the build settings in the Cloudflare dashboard:
+
+**Required Settings:**
+- **Build command**: `bun run build` (NOT `bun install`)
+- **Build output directory**: `dist`
+
+See `CLOUDFLARE_PAGES_BUILD.md` for detailed instructions.
+
+**Why this matters:**
+- `bun install` only installs dependencies, doesn't build the app
+- `bun run build` creates the `dist/` directory with the React app
+- Without `dist/`, Wrangler can't find assets to deploy
+
 ## Rollback Plan
 
 If deployment fails:
