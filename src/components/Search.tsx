@@ -29,7 +29,6 @@ export function Search() {
 
     setIsLoading(true);
     const currentQuery = query;
-    setQuery(''); // Clear input immediately for better UX
 
     try {
       const response = await queryAI({
@@ -45,6 +44,7 @@ export function Search() {
       };
 
       setResults((prev) => [newResult, ...prev]);
+      setQuery(''); // Clear input only on success for better UX
       
       if (response.cached) {
         toast.info('Retrieved from cache', { duration: 2000 });
@@ -55,6 +55,7 @@ export function Search() {
       const message = error instanceof Error ? error.message : 'Search failed';
       toast.error(message);
       console.error('Search error:', error);
+      // Keep the query in the input on error so user can retry
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +124,7 @@ export function Search() {
                     ) : (
                       <>
                         Search
-                        <MagnifyingGlass size={20} weight="bold" />
+                        <MagnifyingGlass size={20} weight="bold" className="ml-2" />
                       </>
                     )}
                   </Button>

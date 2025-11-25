@@ -48,8 +48,15 @@ export async function queryAI(request: QueryRequest): Promise<QueryResponse> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText })) as { error?: string };
-    throw new Error(error.error || `API error: ${response.status}`);
+    let errorMessage = `API error: ${response.status}`;
+    try {
+      const errorData = await response.json() as { error?: string; message?: string };
+      errorMessage = errorData.error || errorData.message || errorMessage;
+    } catch {
+      // If response is not JSON, use status text
+      errorMessage = response.statusText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -62,7 +69,14 @@ export async function getStatus(): Promise<StatusResponse> {
   const response = await fetch(`${getApiBaseUrl()}/status`);
 
   if (!response.ok) {
-    throw new Error(`Status check failed: ${response.status}`);
+    let errorMessage = `Status check failed: ${response.status}`;
+    try {
+      const errorData = await response.json() as { error?: string; message?: string };
+      errorMessage = errorData.error || errorData.message || errorMessage;
+    } catch {
+      errorMessage = response.statusText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
