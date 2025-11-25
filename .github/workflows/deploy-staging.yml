@@ -25,7 +25,6 @@ jobs:
 
       - name: Run tests
         run: bun run test
-        continue-on-error: true
 
       - name: Build React app
         run: bun run build
@@ -33,5 +32,5 @@ jobs:
       - name: Deploy to Cloudflare Staging
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-        run: bun wrangler deploy --config wrangler.staging.jsonc
+        run: bunx wrangler deploy --config wrangler.staging.jsonc
 
