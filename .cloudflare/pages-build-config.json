@@ -1,0 +1,12 @@
+{
+  "build": {
+    "command": "bun run build",
+    "output": "dist",
+    "root": "/"
+  },
+  "deployment": {
+    "type": "worker",
+    "config": "wrangler.jsonc"
+  }
+}
+
