@@ -47,3 +47,9 @@ variable "environment" {
   default     = "prod"
 }
 
+variable "github_repository" {
+  description = "GitHub repository in format 'owner/repo' (e.g., 'stevei101/not-sure')"
+  type        = string
+  default     = "stevei101/not-sure"
+}
+

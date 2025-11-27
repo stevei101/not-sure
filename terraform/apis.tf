@@ -6,7 +6,7 @@ resource "google_project_service" "apis" {
     # Vertex AI API (required for Gemini models)
     "aiplatform.googleapis.com",
 
-    # IAM (for service accounts)
+    # IAM (for service accounts and Workload Identity Federation)
     "iam.googleapis.com",
 
     # Cloud Resource Manager (for project operations)
@@ -17,6 +17,12 @@ resource "google_project_service" "apis" {
 
     # Secret Manager (for storing service account key)
     "secretmanager.googleapis.com",
+
+    # IAM Credentials API (required for Workload Identity Federation)
+    "iamcredentials.googleapis.com",
+
+    # STS API (Security Token Service - required for Workload Identity Federation)
+    "sts.googleapis.com",
   ])
 
   project = var.project_id

@@ -79,3 +79,39 @@ output "setup_instructions" {
   sensitive   = false
 }
 
+# Workload Identity Federation Outputs
+output "wif_provider" {
+  description = "Workload Identity Federation provider resource name for GitHub Actions"
+  value       = google_iam_workload_identity_pool_provider.github.name
+  sensitive   = false
+}
+
+output "wif_service_account" {
+  description = "Service account email for GitHub Actions (via WIF)"
+  value       = google_service_account.github_actions.email
+  sensitive   = false
+}
+
+output "wif_setup_instructions" {
+  description = "Instructions for adding WIF values to GitHub Secrets"
+  value       = <<-EOT
+    ✅ Workload Identity Federation has been set up!
+    
+    Add these values to your GitHub repository secrets:
+    
+    1. Go to: https://github.com/${var.github_repository}/settings/secrets/actions
+    
+    2. Add secret 'WIF_PROVIDER':
+       ${google_iam_workload_identity_pool_provider.github.name}
+    
+    3. Add secret 'WIF_SERVICE_ACCOUNT':
+       ${google_service_account.github_actions.email}
+    
+    After adding these secrets, your GitHub Actions workflow will be able to authenticate to GCP!
+    
+    Workload Identity Pool: ${google_iam_workload_identity_pool.github_actions.name}
+    Repository restriction: ${var.github_repository}
+  EOT
+  sensitive   = false
+}
+
