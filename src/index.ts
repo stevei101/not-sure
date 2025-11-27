@@ -264,7 +264,8 @@ export default {
 
 		// Validate model - build list dynamically based on configuration
 		const validModels: AIModel[] = ["cloudflare"];
-		if (env.GOOGLE_AI_STUDIO_TOKEN) {
+		const projectId = env.GCP_PROJECT_ID || env.VERTEX_AI_PROJECT_ID;
+		if (projectId && env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
 			validModels.push("vertex-ai");
 		}
 		if (!validModels.includes(model)) {
