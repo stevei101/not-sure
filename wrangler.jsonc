@@ -72,6 +72,14 @@
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 * 
+	 * Vertex AI Configuration (set as secrets):
+	 * - VERTEX_AI_SERVICE_ACCOUNT_JSON: Service account JSON key from GCP Secret Manager
+	 * - GCP_PROJECT_ID: GCP project ID (e.g., "vertex-ai-rag-search-p0")
+	 * - VERTEX_AI_LOCATION: Vertex AI region (e.g., "us-central1")
+	 * - VERTEX_AI_MODEL: Gemini model name (e.g., "gemini-3-pro-preview")
+	 * 
+	 * Set these using: wrangler secret put <SECRET_NAME>
 	 */
 	/**
 	 * Static Assets

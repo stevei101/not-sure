@@ -3,17 +3,18 @@
  * 
  * Supports:
  * - Cloudflare AI (Llama 2 7B)
+ * - Google Vertex AI (Gemini models)
  * 
  * POST /query
  * {
  *   "prompt": "your question",
- *   "model": "cloudflare"
+ *   "model": "cloudflare" | "gemini"
  * }
  */
 
 import { Ai } from "@cloudflare/ai";
 
-type AIModel = "cloudflare";
+type AIModel = "cloudflare" | "gemini";
 
 export interface Env {
 	AI: Ai;
@@ -23,6 +24,11 @@ export interface Env {
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
+	// Vertex AI configuration
+	GCP_PROJECT_ID?: string;
+	VERTEX_AI_LOCATION?: string;
+	VERTEX_AI_MODEL?: string;
+	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON key (secret)
 	ASSETS: Fetcher;
 }
 
@@ -76,11 +82,176 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 	return data.result?.response ?? data.response ?? "";
 }
 
+/** Convert PEM private key to ArrayBuffer for Web Crypto API */
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+	const base64 = pem
+		.replace(/-----BEGIN PRIVATE KEY-----/, "")
+		.replace(/-----END PRIVATE KEY-----/, "")
+		.replace(/\s/g, "");
+	const binaryString = atob(base64);
+	const bytes = new Uint8Array(binaryString.length);
+	for (let i = 0; i < binaryString.length; i++) {
+		bytes[i] = binaryString.charCodeAt(i);
+	}
+	return bytes.buffer;
+}
+
+/** Generate Google OAuth2 access token from service account JSON */
+async function getGoogleAccessToken(serviceAccountJson: string): Promise<string> {
+	// Parse service account JSON
+	let serviceAccount: any;
+	try {
+		serviceAccount = JSON.parse(serviceAccountJson);
+	} catch {
+		throw new Error("Invalid service account JSON format");
+	}
+
+	if (!serviceAccount.private_key || !serviceAccount.client_email) {
+		throw new Error("Service account JSON missing required fields (private_key, client_email)");
+	}
+
+	// Create JWT for Google OAuth2 token exchange
+	const now = Math.floor(Date.now() / 1000);
+	const jwtHeader = { alg: "RS256", typ: "JWT" };
+	const jwtPayload = {
+		iss: serviceAccount.client_email,
+		sub: serviceAccount.client_email,
+		aud: "https://oauth2.googleapis.com/token",
+		exp: now + 3600,
+		iat: now,
+		scope: "https://www.googleapis.com/auth/cloud-platform",
+	};
+
+	// Base64URL encode header and payload
+	const base64UrlEncode = (str: string): string => {
+		return btoa(str)
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=/g, "");
+	};
+
+	const encodedHeader = base64UrlEncode(JSON.stringify(jwtHeader));
+	const encodedPayload = base64UrlEncode(JSON.stringify(jwtPayload));
+	const signatureInput = `${encodedHeader}.${encodedPayload}`;
+
+	// Import private key and sign JWT
+	const privateKeyPem = serviceAccount.private_key.replace(/\\n/g, "\n");
+	const privateKeyBuffer = pemToArrayBuffer(privateKeyPem);
+
+	// Import the private key in PKCS#8 format
+	const cryptoKey = await crypto.subtle.importKey(
+		"pkcs8",
+		privateKeyBuffer,
+		{
+			name: "RSASSA-PKCS1-v1_5",
+			hash: "SHA-256",
+		},
+		false,
+		["sign"]
+	);
+
+	// Sign the JWT
+	const signature = await crypto.subtle.sign(
+		{ name: "RSASSA-PKCS1-v1_5" },
+		cryptoKey,
+		new TextEncoder().encode(signatureInput)
+	);
+
+	// Base64URL encode the signature
+	const signatureBase64 = base64UrlEncode(
+		String.fromCharCode(...new Uint8Array(signature))
+	);
+
+	const jwt = `${signatureInput}.${signatureBase64}`;
+
+	// Exchange JWT for access token
+	const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/x-www-form-urlencoded",
+		},
+		body: new URLSearchParams({
+			grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+			assertion: jwt,
+		}),
+	});
+
+	if (!tokenResponse.ok) {
+		const errorText = await tokenResponse.text();
+		throw new Error(`Failed to get access token (${tokenResponse.status}): ${errorText}`);
+	}
+
+	const tokenData = await tokenResponse.json();
+	if (!tokenData.access_token) {
+		throw new Error("No access token in response");
+	}
+	return tokenData.access_token;
+}
+
+/** Call Google Vertex AI (Gemini) */
+async function callGeminiAI(prompt: string, env: Env): Promise<string> {
+	// Validate required Vertex AI configuration
+	if (!env.GCP_PROJECT_ID || !env.VERTEX_AI_LOCATION || !env.VERTEX_AI_MODEL) {
+		throw new Error("Vertex AI configuration missing. Required: GCP_PROJECT_ID, VERTEX_AI_LOCATION, VERTEX_AI_MODEL");
+	}
+
+	if (!env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+		throw new Error("Vertex AI service account JSON not configured. Set VERTEX_AI_SERVICE_ACCOUNT_JSON secret.");
+	}
+
+	const projectId = env.GCP_PROJECT_ID;
+	const location = env.VERTEX_AI_LOCATION;
+	const model = env.VERTEX_AI_MODEL;
+
+	// Vertex AI REST API endpoint for Gemini models
+	const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
+
+	// Format request for Vertex AI
+	const requestBody = {
+		contents: [
+			{
+				parts: [
+					{
+						text: prompt,
+					},
+				],
+			},
+		],
+	};
+
+	// Get access token using service account (JWT signing implemented)
+	const accessToken = await getGoogleAccessToken(env.VERTEX_AI_SERVICE_ACCOUNT_JSON);
+
+	const response = await fetch(endpoint, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(requestBody),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Vertex AI error (${response.status}): ${errorText}`);
+	}
+
+	const data: any = await response.json();
+	// Extract text from Vertex AI response
+	const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+	if (!text) {
+		throw new Error("No response text from Vertex AI");
+	}
+	return text;
+}
+
 /** Route to the appropriate AI model */
 async function callAI(prompt: string, model: AIModel, env: Env): Promise<string> {
 	switch (model) {
 		case "cloudflare":
 			return callCloudflareAI(prompt, env);
+		case "gemini":
+			return callGeminiAI(prompt, env);
 		default:
 			throw new Error(`Unknown model: ${model}`);
 	}
@@ -110,14 +281,21 @@ export default {
 
 		// Health-check endpoint
 		if (request.method === "GET" && url.pathname === "/status") {
+			const models: AIModel[] = ["cloudflare"];
+			// Add gemini if Vertex AI is configured
+			if (env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL) {
+				models.push("gemini");
+			}
+
 			return new Response(
 				JSON.stringify({
 					ok: true,
-					version: "2.0.0",
+					version: "2.1.0",
 					timestamp: new Date().toISOString(),
-					models: ["cloudflare"],
+					models,
 					gatewayId: env.AI_GATEWAY_ID,
-					gatewayUrl: getGatewayUrl("test", env) // return constructed URL for verification
+					gatewayUrl: getGatewayUrl("test", env), // return constructed URL for verification
+					vertexAiConfigured: !!(env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL),
 
 				}),
 				{ headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -147,7 +325,7 @@ export default {
 			}
 
 			// Validate model
-			const validModels: AIModel[] = ["cloudflare"];
+			const validModels: AIModel[] = ["cloudflare", "gemini"];
 			if (!validModels.includes(model)) {
 				return new Response(
 					JSON.stringify({ error: `Invalid model. Choose from: ${validModels.join(", ")}` }),
@@ -171,7 +349,10 @@ export default {
 				const answer = await callAI(prompt, model, env);
 
 				//️ 3️⃣ Cache the answer for future identical prompts (1‑week TTL)
-				await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+				// Only cache non-empty answers
+				if (answer && answer.trim().length > 0) {
+					await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+				}
 
 				return new Response(JSON.stringify({ answer, cached: false, model }), {
 					headers: { "Content-Type": "application/json", ...corsHeaders },
