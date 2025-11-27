@@ -74,7 +74,7 @@ This Terraform configuration creates:
 
 ### Notes
 
-* The backend uses a **workspace prefix** (`not-sure-`) to avoid collisions across forks.
+* The `backend.tf` uses a fixed workspace name (`not-sure`) - the Terraform Cloud `cloud` backend only supports `name` or `tags`, not `prefix`.
 * The `backend.tf` uses hardcoded organization name (required by Terraform - backend blocks cannot use variables).
 * Variables have sensible defaults (see `variables.tf`) - only `project_id` is required.
 
