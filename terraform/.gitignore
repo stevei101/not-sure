@@ -24,8 +24,7 @@ override.tf.json
 terraform.rc
 
 # Ignore service account key files
-*.json
-!terraform.tfvars.example
+*-key.json
 
 # Ignore lock files (commit these, but ignore if regenerated)
 # .terraform.lock.hcl

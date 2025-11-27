@@ -4,6 +4,6 @@ provider "google" {
   # For Terraform Cloud remote execution:
   # Credentials must be set as GOOGLE_CREDENTIALS environment variable in Terraform Cloud workspace
   # The GOOGLE_CREDENTIALS env var should contain the service account key JSON
-  # See TERRAFORM_CLOUD_CREDENTIALS_SETUP.md for setup instructions
+  # Run: terraform/scripts/setup-terraform-cloud-credentials.sh to automate setup
 }
 

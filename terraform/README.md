@@ -8,10 +8,12 @@ This directory contains Terraform configuration to automate the setup of Google 
 
 This Terraform configuration creates:
 - ✅ Vertex AI API enablement
-- ✅ Service account with appropriate IAM roles
-- ✅ **Service account key generation (automatic!)**
-- ✅ Secret Manager secret with stored service account JSON key
-- ✅ IAM bindings for service account access
+
+**Future PRs will add:**
+- Service account with appropriate IAM roles
+- **Service account key generation (automatic!)**
+- Secret Manager secret with stored service account JSON key
+- IAM bindings for service account access
 
 ## Prerequisites
 
@@ -32,11 +34,11 @@ This Terraform configuration creates:
    
    - Edit `terraform/backend.tf` directly
    - Update the `organization` value (default: `disposable-org`)
-   - The workspace uses a **prefix** (`not-sure-`) to avoid name collisions across forks
+   - Update the `workspace` name (default: `not-sure`)
    
    Current defaults:
    - Organization: `disposable-org` (update if different)
-   - Workspace prefix: `not-sure-` (creates workspaces like `not-sure-main`, `not-sure-feature-branch`)
+   - Workspace: `not-sure` (matches your workspace name)
 
 2. **Create a `terraform.tfvars`** (or set environment variables):
 
@@ -80,7 +82,9 @@ This Terraform configuration creates:
 
 ## Post-Deployment Steps
 
-After Terraform creates the infrastructure:
+> **Note**: These steps are for future PRs that will add service account resources. This PR only enables APIs.
+
+After future PRs create service account resources:
 
 1. **Retrieve Service Account Key** (automatically generated and stored by Terraform):
    ```bash
@@ -111,17 +115,9 @@ After Terraform creates the infrastructure:
 
 See `.github/workflows/terraform.yml` for automated Terraform execution via GitHub Actions with Terraform Cloud.
 
-## Outputs
-
-After applying, Terraform will output:
-- `service_account_email`: Use this for reference
-- `project_id`: GCP Project ID
-- `vertex_ai_location`: Vertex AI region
-- `vertex_ai_model`: Model name
-- `secret_name`: Secret Manager secret name
-- `setup_instructions`: Next steps for completing the setup
-
 ## Resources Created
+
+This PR only creates API enablement resources:
 
 - **APIs Enabled**:
   - `aiplatform.googleapis.com` - Vertex AI API
@@ -129,17 +125,22 @@ After applying, Terraform will output:
   - `secretmanager.googleapis.com` - Secret Manager API
   - `cloudresourcemanager.googleapis.com` - Resource Manager API
   - `serviceusage.googleapis.com` - Service Usage API
+  - `iamcredentials.googleapis.com` - IAM Credentials API (for Workload Identity Federation)
+  - `sts.googleapis.com` - Security Token Service API (for Workload Identity Federation)
 
-- **Service Account**: 
-  - Name: `not-sure-vertex-ai` (configurable)
-  - Roles:
-    - `roles/aiplatform.user`
-    - `roles/aiplatform.serviceAgent`
-    - `roles/secretmanager.secretAccessor`
+**Future PRs will create:**
+- Service Account with appropriate IAM roles
+- Secret Manager secret with service account JSON key
+- IAM bindings for service account access
 
-- **Secret Manager Secret**:
-  - Name: `VERTEX_AI_SERVICE_ACCOUNT_JSON`
-  - Contains: Service account JSON key (automatically generated and stored by Terraform)
+## Outputs
+
+> **Note**: Outputs will be added in future PRs when service account resources are created.
+
+After applying, Terraform currently has no outputs. Future PRs will add outputs like:
+- `service_account_email`
+- `secret_name`
+- `setup_instructions`
 
 ## Troubleshooting
 
