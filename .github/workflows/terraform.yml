@@ -8,6 +8,7 @@ on:
       - '.github/workflows/terraform.yml'
   pull_request:
     branches:
+      - develop
       - main
     paths:
       - 'terraform/**'
@@ -148,12 +149,12 @@ jobs:
           exit 1
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
         working-directory: terraform
         run: terraform apply -auto-approve -input=false -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
 
       - name: Output Terraform Outputs
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
         working-directory: terraform
         run: |
           echo "## Terraform Apply Outputs" >> $GITHUB_STEP_SUMMARY
