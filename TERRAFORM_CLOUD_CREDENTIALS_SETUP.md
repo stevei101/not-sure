@@ -1,5 +1,17 @@
 # Terraform Cloud GCP Credentials Setup
 
+## Quick Start (Easiest Way)
+
+**Run this script and follow the 3 simple steps:**
+
+```bash
+cd terraform/scripts
+export GCP_PROJECT_ID="your-project-id"  # Or set it first
+./setup-terraform-cloud-credentials.sh
+```
+
+Then follow the on-screen instructions to add the key to Terraform Cloud workspace.
+
 ## Problem
 
 When Terraform Cloud runs plans/apply **remotely**, it needs GCP credentials configured in the **Terraform Cloud workspace**, not from GitHub Actions.
@@ -9,9 +21,13 @@ When Terraform Cloud runs plans/apply **remotely**, it needs GCP credentials con
 Error: Attempted to load application default credentials since neither `credentials` nor `access_token` was set in the provider block. No credentials loaded.
 ```
 
-## Solution
+## Solution (Simple Version)
 
 Set up a **service account** for Terraform Cloud and configure it as an **environment variable** in your Terraform Cloud workspace.
+
+**It's just 2 steps:**
+1. Create service account + key (automated script above, or manual below)
+2. Add `GOOGLE_CREDENTIALS` env var in Terraform Cloud workspace with the key JSON
 
 ## Step 1: Create a Service Account for Terraform Cloud
 
