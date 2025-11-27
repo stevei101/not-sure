@@ -31,7 +31,9 @@ export interface Env {
 	VERTEX_AI_PROJECT_ID?: string; // Alias for GCP_PROJECT_ID (for backward compatibility)
 	VERTEX_AI_LOCATION?: string; // Vertex AI region (e.g., "us-central1")
 	VERTEX_AI_MODEL?: string; // Model name (e.g., "gemini-1.5-flash" or "gemini-2.5-flash")
-	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON key for authentication
+	// Authentication: Can use API key (same as Google AI Studio) OR service account JSON
+	GEMINI_API_KEY?: string; // API key for Vertex AI (same as Google AI Studio) - preferred
+	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON (alternative to API key)
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -220,9 +222,10 @@ export default {
 		// Health-check endpoint
 		if (request.method === "GET" && url.pathname === "/status") {
 			const models = ["cloudflare"];
-			// Add vertex-ai if configured
+			// Add vertex-ai if configured (supports API key or service account)
 			const projectId = env.GCP_PROJECT_ID || env.VERTEX_AI_PROJECT_ID;
-			if (projectId && env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+			const hasAuth = env.GEMINI_API_KEY || env.VERTEX_AI_SERVICE_ACCOUNT_JSON;
+			if (projectId && hasAuth) {
 				models.push("vertex-ai");
 			}
 
@@ -267,7 +270,8 @@ export default {
 		// Validate model - build list dynamically based on configuration
 		const validModels: AIModel[] = ["cloudflare"];
 		const projectId = env.GCP_PROJECT_ID || env.VERTEX_AI_PROJECT_ID;
-		if (projectId && env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+		const hasAuth = env.GEMINI_API_KEY || env.VERTEX_AI_SERVICE_ACCOUNT_JSON;
+		if (projectId && hasAuth) {
 			validModels.push("vertex-ai");
 		}
 		if (!validModels.includes(model)) {
