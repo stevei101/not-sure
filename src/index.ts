@@ -30,7 +30,7 @@ export interface Env {
 	GCP_PROJECT_ID?: string; // GCP Project ID (used for Vertex AI)
 	VERTEX_AI_PROJECT_ID?: string; // Alias for GCP_PROJECT_ID (for backward compatibility)
 	VERTEX_AI_LOCATION?: string; // Vertex AI region (e.g., "us-central1")
-	VERTEX_AI_MODEL?: string; // Model name (e.g., "gemini-3-pro-preview", "gemini-1.5-flash", "gemini-1.5-pro")
+	VERTEX_AI_MODEL?: string; // Model name (e.g., "gemini-3-pro-preview", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-1.5-flash", "gemini-1.5-pro")
 	// Authentication: Can use API key (same as Google AI Studio) OR service account JSON
 	GEMINI_API_KEY?: string; // API key for Vertex AI (same as Google AI Studio) - preferred
 	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON (alternative to API key)
