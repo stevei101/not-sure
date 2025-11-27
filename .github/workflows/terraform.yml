@@ -97,6 +97,12 @@ jobs:
         with:
           tflint_version: latest
 
+      - name: Initialize TFLint
+        id: tflint_init
+        working-directory: terraform
+        run: tflint --init
+        continue-on-error: true
+
       - name: Run TFLint
         id: tflint
         working-directory: terraform
