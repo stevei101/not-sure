@@ -235,10 +235,11 @@ export default {
 					models,
 					gatewayId: env.AI_GATEWAY_ID,
 					gatewayUrl: getGatewayUrl("test", env), // return constructed URL for verification
-					vertexAI: projectId && env.VERTEX_AI_SERVICE_ACCOUNT_JSON ? {
+					vertexAI: projectId && (env.GEMINI_API_KEY || env.VERTEX_AI_SERVICE_ACCOUNT_JSON) ? {
 						projectId: projectId,
 						location: env.VERTEX_AI_LOCATION || "us-central1",
 						model: env.VERTEX_AI_MODEL || "gemini-1.5-flash",
+						authMethod: env.GEMINI_API_KEY ? "api-key" : "service-account",
 						configured: true
 					} : { configured: false }
 				}),
