@@ -66,7 +66,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             removeMessage(loadingId);
-            const errorMessage = error.message || error.toString() || 'Unknown error occurred';
+            // Extract error message from various error formats
+            let errorMessage = 'Unknown error occurred';
+            if (error instanceof Error) {
+                errorMessage = error.message || error.toString();
+            } else if (typeof error === 'string') {
+                errorMessage = error;
+            } else if (error && typeof error === 'object') {
+                errorMessage = error.message || error.error || JSON.stringify(error);
+            }
             console.error('Error details:', error);
             addMessage(`Sorry, something went wrong: ${errorMessage}`, 'ai');
         } finally {
