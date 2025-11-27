@@ -82,6 +82,30 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 	return data.result?.response ?? data.response ?? "";
 }
 
+/** Service account JSON structure */
+interface ServiceAccount {
+	private_key: string;
+	client_email: string;
+}
+
+/** Google OAuth2 token response structure */
+interface GoogleTokenResponse {
+	access_token: string;
+	token_type?: string;
+	expires_in?: number;
+}
+
+/** Vertex AI response structure */
+interface VertexAIResponse {
+	candidates?: Array<{
+		content?: {
+			parts?: Array<{
+				text: string;
+			}>;
+		};
+	}>;
+}
+
 /** Convert PEM private key to ArrayBuffer for Web Crypto API */
 function pemToArrayBuffer(pem: string): ArrayBuffer {
 	const base64 = pem
@@ -99,7 +123,7 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
 /** Generate Google OAuth2 access token from service account JSON */
 async function getGoogleAccessToken(serviceAccountJson: string): Promise<string> {
 	// Parse service account JSON
-	let serviceAccount: any;
+	let serviceAccount: ServiceAccount;
 	try {
 		serviceAccount = JSON.parse(serviceAccountJson);
 	} catch {
@@ -112,12 +136,13 @@ async function getGoogleAccessToken(serviceAccountJson: string): Promise<string>
 
 	// Create JWT for Google OAuth2 token exchange
 	const now = Math.floor(Date.now() / 1000);
+	const TOKEN_LIFETIME_SECONDS = 3600; // 1 hour, max for Google OAuth2 JWTs
 	const jwtHeader = { alg: "RS256", typ: "JWT" };
 	const jwtPayload = {
 		iss: serviceAccount.client_email,
 		sub: serviceAccount.client_email,
 		aud: "https://oauth2.googleapis.com/token",
-		exp: now + 3600,
+		exp: now + TOKEN_LIFETIME_SECONDS,
 		iat: now,
 		scope: "https://www.googleapis.com/auth/cloud-platform",
 	};
@@ -181,7 +206,7 @@ async function getGoogleAccessToken(serviceAccountJson: string): Promise<string>
 		throw new Error(`Failed to get access token (${tokenResponse.status}): ${errorText}`);
 	}
 
-	const tokenData = await tokenResponse.json();
+	const tokenData: GoogleTokenResponse = await tokenResponse.json();
 	if (!tokenData.access_token) {
 		throw new Error("No access token in response");
 	}
@@ -236,7 +261,7 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 		throw new Error(`Vertex AI error (${response.status}): ${errorText}`);
 	}
 
-	const data: any = await response.json();
+	const data: VertexAIResponse = await response.json();
 	// Extract text from Vertex AI response
 	const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 	if (!text) {
