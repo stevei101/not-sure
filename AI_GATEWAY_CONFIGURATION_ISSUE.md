@@ -50,9 +50,11 @@ Make sure this format is correct for your gateway configuration.
 ## Next Steps
 
 1. ✅ **Fixed error display** - The error message will now show properly in the UI
-2. ⏳ **Configure AI Gateway** - Set up the gateway in Cloudflare dashboard
-3. ⏳ **Verify Gateway Settings** - Ensure Workers AI provider is enabled
-4. ⏳ **Test Again** - After configuration, test the search functionality
+2. ✅ **Configure AI Gateway** - Set up the gateway in Cloudflare dashboard
+3. ✅ **Verify Gateway Settings** - Ensure Workers AI provider is enabled
+4. ⏸️ **Create Dynamic Routes** - Set up dynamic routes for rate limiting, budget limits, and more
+   - See `AI_GATEWAY_DYNAMIC_ROUTING.md` for step-by-step instructions
+5. ⏳ **Test Again** - After configuration, test the search functionality
 
 ## Testing
 
