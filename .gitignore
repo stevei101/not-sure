@@ -165,3 +165,22 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# Archives that may contain secrets or sensitive code
+*.zip
+*.tar.gz
+*.tar
+*.rar
+
+# Terraform sensitive files
+terraform.tfvars
+*.tfvars
+!terraform.tfvars.example
+.terraform/
+.terraform.lock.hcl
+
+# Service account keys and credentials
+*key.json
+*service-account*.json
+*credentials*.json
+credentials/
