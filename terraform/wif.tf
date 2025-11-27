@@ -2,12 +2,12 @@
 # This allows GitHub Actions to authenticate to GCP without storing service account keys
 
 # Workload Identity Pool
+# Note: Workload Identity Pools are always global and don't require a location argument
 resource "google_iam_workload_identity_pool" "github_actions" {
   project                   = var.project_id
   workload_identity_pool_id = "github-actions-pool"
   display_name              = "GitHub Actions Pool"
   description               = "Workload Identity Pool for GitHub Actions to access GCP resources"
-  location                  = "global"
 
   depends_on = [google_project_service.apis]
 }
