@@ -20,6 +20,17 @@ export interface StatusResponse {
   models: string[];
   gatewayId: string;
   gatewayUrl: string;
+  vertexAiConfigured?: boolean;
+  vertexAiAuthConfigured?: boolean;
+  vertexAiTokenCached?: boolean;
+}
+
+/** Structured error response from API */
+export interface ErrorResponse {
+  error: string;
+  code: "auth_error" | "config_missing" | "provider_error" | "invalid_request" | "internal_error";
+  model?: string;
+  details?: unknown;
 }
 
 /**

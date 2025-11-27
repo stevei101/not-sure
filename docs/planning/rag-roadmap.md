@@ -15,8 +15,11 @@
 - Cache: KV cache post‑answer; invalidate on ingestion updates.
 
 ## 4) Gateway + Models
-- Extend AIModel union to include Vertex AI (`gemini`) and future models.
-- Add routing and optional UI model picker; default auto.
+- ✅ **COMPLETE**: Extended AIModel union to include Vertex AI (`gemini`) and future models (PR 2.2).
+- ✅ **COMPLETE**: Model routing implemented (`cloudflare` and `gemini` models).
+- ⚠️ **NOTE**: Vertex AI calls are direct (not through Cloudflare AI Gateway) because Gateway does not currently support Vertex AI/Gemini models. This is a temporary deviation from Gateway-first policy.
+- **PENDING**: Add optional UI model picker; default auto.
+- **PENDING**: Gateway unification milestone - migrate Vertex AI to Gateway if/when supported.
 
 ## 5) UI Enhancements
 - Display sources/citations beneath answer.
@@ -32,6 +35,29 @@
 - Observability: Gateway analytics; Workers logs; error telemetry.
 
 ## Milestones
-- M1: Embeddings + Vectorize wiring + ingest endpoint.
-- M2: `/api/v1/search` with sources.
-- M3: Model routing + UI sources + tests.
+
+### M0: Multi-Model Foundation ✅ (PR 2.2)
+- ✅ Vertex AI (Gemini) integration complete
+- ✅ OAuth2 authentication with token caching
+- ✅ Structured error handling
+- ✅ Enhanced status endpoint
+- ⏳ Unit tests for new functionality (target: ≥70% coverage)
+
+### M1: Embeddings + Vectorize wiring + ingest endpoint.
+- Vector store setup (Cloudflare Vectorize)
+- Embeddings pipeline
+- Ingestion endpoint `POST /api/v1/ingest`
+
+### M2: `/api/v1/search` with sources.
+- Retrieval API implementation
+- Vector search integration
+- Source attribution in responses
+
+### M3: Model routing + UI sources + tests.
+- UI model picker
+- Source citations in UI
+- Comprehensive test coverage (target: ≥70%)
+
+### Future: Gateway Unification
+- Migrate Vertex AI calls to Cloudflare AI Gateway when support is available
+- Unified analytics and rate limiting across all providers
