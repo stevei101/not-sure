@@ -104,31 +104,70 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 	throw new Error("Unable to extract response from Cloudflare AI: unexpected response format");
 }
 
-/** Call Google Gemini via Cloudflare AI Gateway using native SDK */
+/** Call Google Gemini via Cloudflare AI Gateway using native API format (matches cURL) */
 async function callVertexAI(prompt: string, env: Env): Promise<string> {
 	if (!env.GOOGLE_AI_STUDIO_TOKEN) {
 		throw new Error("Gemini API configuration missing: GOOGLE_AI_STUDIO_TOKEN must be set");
 	}
 
-	const modelName = env.GEMINI_MODEL || "gemini-1.5-flash";
+	// Try gemini-2.0-flash-exp or gemini-1.5-flash - models available may vary
+	const modelName = env.GEMINI_MODEL || "gemini-2.0-flash-exp";
 	
-	// Initialize Google Generative AI SDK with custom baseUrl pointing to Cloudflare AI Gateway
-	// The gateway endpoint format: /v1/{account_id}/default/google-ai-studio
-	const gatewayBaseUrl = `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/default/google-ai-studio`;
-	
-	const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_STUDIO_TOKEN);
-	const model = genAI.getGenerativeModel(
-		{ model: modelName },
-		{ baseUrl: gatewayBaseUrl }
-	);
+	// Use fetch-based approach to match exact cURL format
+	// Endpoint: /v1/{account_id}/default/google-ai-studio/v1/models/{model}:generateContent
+	const gatewayEndpoint = `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/default/google-ai-studio/v1/models/${modelName}:generateContent`;
 
-	try {
-		const result = await model.generateContent([prompt]);
-		const response = await result.response;
-		return response.text();
-	} catch (error: any) {
-		throw new Error(`Gemini API error: ${error.message || error.toString()}`);
+	// Prepare request body in native Gemini format
+	const requestBody = {
+		contents: [
+			{
+				role: "user",
+				parts: [
+					{
+						text: prompt
+					}
+				]
+			}
+		]
+	};
+
+	const response = await fetch(gatewayEndpoint, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-goog-api-key": env.GOOGLE_AI_STUDIO_TOKEN
+		},
+		body: JSON.stringify(requestBody)
+	});
+
+	if (!response.ok) {
+		let errorText: string;
+		try {
+			errorText = await response.text();
+		} catch {
+			errorText = `HTTP ${response.status} ${response.statusText}`;
+		}
+		throw new Error(`Gemini API error (${response.status}): ${errorText}`);
 	}
+
+	const data: any = await response.json();
+	
+	// Extract text from Gemini response format
+	// Response format: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+	if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+		return data.candidates[0].content.parts[0].text;
+	}
+	
+	// Fallback for different response formats
+	if (data.text) {
+		return data.text;
+	}
+	
+	if (typeof data === "string") {
+		return data;
+	}
+
+	throw new Error("Unable to extract response from Gemini API: unexpected response format");
 }
 
 /** Route to the appropriate AI model */

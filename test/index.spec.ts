@@ -14,6 +14,24 @@ describe('AI Worker', () => {
 			expect(response.status).toBe(200);
 			expect(data.ok).toBe(true);
 			expect(data.version).toBeDefined();
+			expect(data.models).toBeDefined();
+			expect(Array.isArray(data.models)).toBe(true);
+			// Should include cloudflare at minimum
+			expect(data.models).toContain('cloudflare');
+		});
+
+		it('shows vertex-ai configuration status', async () => {
+			const request = new Request<unknown, IncomingRequestCfProperties>('http://example.com/status');
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, env, ctx);
+			await waitOnExecutionContext(ctx);
+
+			const data = await response.json() as any;
+			expect(response.status).toBe(200);
+			expect(data.vertexAI).toBeDefined();
+			expect(data.vertexAI.configured).toBeDefined();
+			// vertexAI.configured should be false if not configured, true if configured
+			expect(typeof data.vertexAI.configured).toBe('boolean');
 		});
 	});
 
@@ -50,6 +68,20 @@ describe('AI Worker', () => {
 			expect(response.status).toBe(400);
 			const data = await response.json() as any;
 			expect(data.error).toContain('Invalid model');
+		});
+
+		it('rejects vertex-ai model when not configured', async () => {
+			const request = new Request('http://example.com/query', {
+				method: 'POST',
+				body: JSON.stringify({ prompt: 'hello', model: 'vertex-ai' }),
+				headers: { 'Content-Type': 'application/json' }
+			});
+			const response = await SELF.fetch(request);
+			expect(response.status).toBe(400);
+			const data = await response.json() as any;
+			expect(data.error).toContain('Invalid model');
+			// Should only list cloudflare as valid when vertex-ai is not configured
+			expect(data.error).toContain('cloudflare');
 		});
 	});
 });
