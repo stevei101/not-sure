@@ -9,7 +9,8 @@ This directory contains Terraform configuration to automate the setup of Google 
 This Terraform configuration creates:
 - ✅ Vertex AI API enablement
 - ✅ Service account with appropriate IAM roles
-- ✅ Secret Manager secret for storing service account credentials
+- ✅ **Service account key generation (automatic!)**
+- ✅ Secret Manager secret with stored service account JSON key
 - ✅ IAM bindings for service account access
 
 ## Prerequisites
@@ -62,17 +63,29 @@ terraform apply
 
 After Terraform creates the infrastructure:
 
-1. **Generate Service Account Key**:
+1. **Retrieve Service Account Key** (automatically generated and stored by Terraform):
    ```bash
-   ./scripts/generate-and-store-key.sh
+   # Option 1: Use helper script (easiest)
+   ./terraform/scripts/get-service-account-key.sh [PROJECT_ID]
+   
+   # Option 2: Manual retrieval
+   gcloud secrets versions access latest \
+     --secret="VERTEX_AI_SERVICE_ACCOUNT_JSON" \
+     --project=$(terraform output -raw project_id) | \
+   wrangler secret put VERTEX_AI_SERVICE_ACCOUNT_JSON
    ```
 
-2. **Set Cloudflare Worker Secrets**:
+2. **Set Other Cloudflare Worker Secrets**:
    ```bash
-   wrangler secret put VERTEX_AI_PROJECT_ID
-   wrangler secret put VERTEX_AI_LOCATION  
-   wrangler secret put VERTEX_AI_MODEL
-   wrangler secret put VERTEX_AI_SERVICE_ACCOUNT_JSON
+   wrangler secret put GCP_PROJECT_ID      # Same as GitHub secret
+   wrangler secret put VERTEX_AI_LOCATION  # e.g., us-central1
+   wrangler secret put VERTEX_AI_MODEL     # e.g., gemini-1.5-flash
+   ```
+   
+   Or use API key instead (simpler):
+   ```bash
+   wrangler secret put GCP_PROJECT_ID
+   wrangler secret put GEMINI_API_KEY      # Same API key works for both!
    ```
 
 ## GitHub Actions Integration
@@ -107,7 +120,7 @@ After applying, Terraform will output:
 
 - **Secret Manager Secret**:
   - Name: `VERTEX_AI_SERVICE_ACCOUNT_JSON`
-  - Contains: Service account JSON key (added after creation)
+  - Contains: Service account JSON key (automatically generated and stored by Terraform)
 
 ## Troubleshooting
 
