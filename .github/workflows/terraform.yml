@@ -155,16 +155,17 @@ jobs:
           echo "TFLint: ${{ steps.tflint.outcome }}"
           exit 1
 
-      - name: Note About Terraform Cloud Credentials
+      - name: Note About Terraform Cloud Authentication
         if: github.event_name == 'pull_request' && steps.plan.outcome == 'failure'
         run: |
-          echo "⚠️ Terraform plan failed - this is expected if Terraform Cloud credentials are not configured yet." >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ Terraform plan failed - this is expected if Terraform Cloud GCP authentication is not configured yet." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "To enable Terraform plans in PRs:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Configure \`GOOGLE_CREDENTIALS\` environment variable in Terraform Cloud workspace" >> $GITHUB_STEP_SUMMARY
-          echo "2. See \`terraform/TERRAFORM_CLOUD_SETUP.md\` for detailed instructions" >> $GITHUB_STEP_SUMMARY
+          echo "1. **Recommended**: Configure GCP workspace integration in Terraform Cloud (automatic auth)" >> $GITHUB_STEP_SUMMARY
+          echo "2. **Fallback**: Set \`GOOGLE_CREDENTIALS\` environment variable in Terraform Cloud workspace" >> $GITHUB_STEP_SUMMARY
+          echo "3. See \`terraform/TERRAFORM_CLOUD_SETUP.md\` for detailed instructions" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Note:** Validation (format, lint, validate) passed - PR can still be merged. Plan will work after credentials are configured." >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** Validation (format, lint, validate) passed - PR can still be merged. Plan will work after authentication is configured." >> $GITHUB_STEP_SUMMARY
 
       - name: Terraform Apply
         if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'

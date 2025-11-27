@@ -1,17 +1,43 @@
-# Terraform Cloud Credentials Setup
+# Terraform Cloud Authentication Setup
 
 ## Problem
 
-When running `terraform plan` on pull requests, Terraform Cloud executes the plan remotely. Remote execution requires GCP credentials to be configured in the Terraform Cloud workspace.
+When running `terraform plan` on pull requests, Terraform Cloud executes the plan remotely. Remote execution requires GCP authentication to be configured in the Terraform Cloud workspace.
 
 **Error you'll see:**
 ```
 Error: Attempted to load application default credentials since neither `credentials` nor `access_token` was set in the provider block. No credentials loaded.
 ```
 
-## Solution: Configure GOOGLE_CREDENTIALS in Terraform Cloud
+## Solution Options
 
-### Option 1: Use Service Account Key (Recommended for Terraform Cloud)
+### Option 1: GCP Workspace Integration (Recommended)
+
+Terraform Cloud supports GCP workspace integration for automatic authentication. No service account keys needed!
+
+1. **Go to Terraform Cloud workspace settings**:
+   - Navigate to: https://app.terraform.io/app/YOUR_ORG/workspaces/not-sure/settings/integrations
+   - Or: Workspace → Settings → Integrations
+
+2. **Configure GCP Integration**:
+   - Click "Connect a GCP integration"
+   - Follow the setup wizard to link your GCP project
+   - Terraform Cloud will handle authentication automatically
+
+3. **Verify**:
+   - The integration should appear in workspace settings
+   - Plans and applies will authenticate automatically
+
+**Benefits:**
+- ✅ No service account keys to manage
+- ✅ Automatic credential rotation
+- ✅ More secure (no keys stored)
+
+### Option 2: Use GOOGLE_CREDENTIALS Environment Variable (Fallback)
+
+If GCP workspace integration isn't available, use service account keys:
+
+#### Using Service Account Key (Fallback Method)
 
 1. **Create a service account key** (if you haven't already):
    ```bash
@@ -29,7 +55,7 @@ Error: Attempted to load application default credentials since neither `credenti
 
 3. **Save the variable**
 
-### Option 2: Use Existing Service Account Key
+#### Using Existing Service Account Key
 
 If you already have a service account key (`cloudflare-workers-vertex-ai@vertex-ai-rag-search-p0.iam.gserviceaccount.com`):
 
@@ -45,19 +71,13 @@ If you already have a service account key (`cloudflare-workers-vertex-ai@vertex-
 
 2. Add the JSON content to Terraform Cloud workspace as `GOOGLE_CREDENTIALS` (sensitive environment variable)
 
-### Option 3: Create Terraform CI Service Account (Future)
-
-Once the Terraform CI service account is created (via `service_account_ci.tf`), you can:
-
-1. Generate a key from Terraform output
-2. Add it to Terraform Cloud workspace
-
-## Why This Is Needed
+## Authentication Methods Summary
 
 - **GitHub Actions**: Uses Workload Identity Federation (WIF) - no service account key needed
-- **Terraform Cloud**: Runs on remote infrastructure - needs service account key via `GOOGLE_CREDENTIALS` environment variable
+- **Terraform Cloud (Recommended)**: Uses GCP workspace integration - automatic authentication, no keys needed
+- **Terraform Cloud (Fallback)**: Uses `GOOGLE_CREDENTIALS` environment variable - requires service account key JSON
 
-These are separate authentication methods for different execution environments.
+**Best Practice**: Use GCP workspace integration when available. Service account keys are only needed as a fallback.
 
 ## Temporary Workaround for PRs
 
