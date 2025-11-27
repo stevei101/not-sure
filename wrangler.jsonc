@@ -52,7 +52,13 @@
 		"AI_GATEWAY_ID": "AQ.Ab8RN6JKBAPQhVWbuiBKBT1j9r3lE0Gqj4rfeat0SIo9aQzFFw",
 		"AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1",
 		// Set to "true" if using a custom domain that maps directly to the gateway provider path
-		"AI_GATEWAY_SKIP_PATH_CONSTRUCTION": "false"
+		"AI_GATEWAY_SKIP_PATH_CONSTRUCTION": "false",
+		// Vertex AI Configuration (optional - only needed if using vertex-ai model)
+		// "VERTEX_AI_PROJECT_ID": "your-gcp-project-id",
+		// "VERTEX_AI_LOCATION": "us-central1",
+		// "VERTEX_AI_MODEL": "gemini-1.5-pro"
+		// Note: VERTEX_AI_SERVICE_ACCOUNT_JSON should be set as a secret via:
+		// wrangler secret put VERTEX_AI_SERVICE_ACCOUNT_JSON
 	},
 	/**
 	 * Routes
@@ -67,7 +73,7 @@
 			"pattern": "www.lornu.ai",
 			"custom_domain": true
 		}
-	]
+	],
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
