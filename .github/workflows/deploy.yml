@@ -22,11 +22,11 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run tests
-        run: bun run test
-
       - name: Build React app
         run: bun run build
+
+      - name: Run tests
+        run: bun run test
 
       - name: Deploy to Cloudflare
         env:
