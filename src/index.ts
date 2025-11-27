@@ -24,12 +24,62 @@ export interface Env {
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
+	ALLOWED_ORIGINS?: string; // comma-separated list
+	GATEWAY_FIRST?: string; // "true" | "false"
+	ALLOW_DIRECT_PROVIDER?: string; // "true" | "false"
 	// Vertex AI configuration
 	GCP_PROJECT_ID?: string;
 	VERTEX_AI_LOCATION?: string;
 	VERTEX_AI_MODEL?: string;
 	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON key (secret)
 	ASSETS: Fetcher;
+}
+
+// Error code constants for consistent error responses
+const ErrorCode = {
+	ConfigMissing: "config_missing",
+	AuthError: "auth_error",
+	ProviderError: "provider_error",
+	PolicyViolation: "policy_violation",
+} as const;
+
+type ErrorCodeType = typeof ErrorCode[keyof typeof ErrorCode];
+
+function jsonResponse(
+	status: number,
+	body: Record<string, unknown>,
+	headers?: Record<string, string>
+): Response {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { "Content-Type": "application/json", ...(headers || {}) },
+	});
+}
+
+function parseAllowedOrigins(env: Env): string[] {
+	if (!env.ALLOWED_ORIGINS) return [];
+	return env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function isOriginAllowed(origin: string | null, env: Env): boolean {
+	if (!origin) return false;
+	const allowed = parseAllowedOrigins(env);
+	return allowed.length === 0 ? false : allowed.includes(origin);
+}
+
+function corsHeadersFor(origin: string | null, env: Env): Record<string, string> {
+	if (isOriginAllowed(origin, env)) {
+		return {
+			"Access-Control-Allow-Origin": origin as string,
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type",
+		};
+	}
+	// default minimal CORS when origin isn't allowed (no wildcard for security)
+	return {
+		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+		"Access-Control-Allow-Headers": "Content-Type",
+	};
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -251,6 +301,12 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 
 /** Call Google Vertex AI (Gemini) */
 async function callGeminiAI(prompt: string, env: Env): Promise<string> {
+	// Enforce Gateway-first policy for external providers unless explicitly allowed
+	const gatewayFirst = env.GATEWAY_FIRST !== "false"; // default true
+	const allowDirect = env.ALLOW_DIRECT_PROVIDER === "true";
+	if (gatewayFirst && !allowDirect) {
+		throw Object.assign(new Error("Direct provider calls disabled by policy (gateway-first)."), { code: ErrorCode.PolicyViolation });
+	}
 	// Validate required Vertex AI configuration
 	if (!env.GCP_PROJECT_ID || !env.VERTEX_AI_LOCATION || !env.VERTEX_AI_MODEL) {
 		throw new Error("Vertex AI configuration missing. Required: GCP_PROJECT_ID, VERTEX_AI_LOCATION, VERTEX_AI_MODEL");
@@ -342,24 +398,24 @@ async function callAI(prompt: string, model: AIModel, env: Env): Promise<string>
 export default {
 	async fetch(request: Request, env: Env) {
 		const url = new URL(request.url);
+		const origin = request.headers.get("Origin");
 
 		// Handle CORS preflight
 		if (request.method === "OPTIONS") {
 			return new Response(null, {
-				headers: {
-					"Access-Control-Allow-Origin": "*",
-					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-					"Access-Control-Allow-Headers": "Content-Type",
-				},
+				headers: corsHeadersFor(origin, env),
 			});
 		}
 
-		// CORS headers for all responses
-		const corsHeaders = {
-			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type",
-		};
+		// Enforce CORS allowlist for non-preflight requests
+		if (!isOriginAllowed(origin, env)) {
+			// Allow same-origin (no Origin header) for internal calls like tests
+			if (origin) {
+				return new Response("Forbidden", { status: 403, headers: corsHeadersFor(origin, env) });
+			}
+		}
+
+		const corsHeaders = corsHeadersFor(origin, env);
 
 		// Health-check endpoint
 		if (request.method === "GET" && url.pathname === "/status") {
@@ -387,9 +443,9 @@ export default {
 		// RAG query endpoint
 		if (url.pathname === "/query") {
 			if (request.method !== "POST") {
-				return new Response("Only POST /query is supported", { 
-					status: 404, 
-					headers: corsHeaders 
+				return new Response("Only POST /query is supported", {
+					status: 404,
+					headers: corsHeaders,
 				});
 			}
 			let body: any;
@@ -440,10 +496,13 @@ export default {
 					headers: { "Content-Type": "application/json", ...corsHeaders },
 				});
 			} catch (error: any) {
-				return new Response(
-					JSON.stringify({ error: error.message || "Internal server error", model }),
-					{ status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-				);
+				const code: ErrorCodeType = error?.code || (error?.message?.includes("token") ? ErrorCode.AuthError : ErrorCode.ProviderError);
+				const status =
+					code === ErrorCode.ConfigMissing ? 400 :
+					code === ErrorCode.AuthError ? 401 :
+					code === ErrorCode.PolicyViolation ? 501 :
+					502; // provider or unknown
+				return jsonResponse(status, { error: error?.message || "Internal server error", code, model }, corsHeaders);
 			}
 		}
 
