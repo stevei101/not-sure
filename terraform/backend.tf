@@ -10,12 +10,16 @@
 #
 # Current configuration:
 # - Organization: "disposable-org" (update if different)
-# - Workspace: "not-sure" (matches your workspace name)
+# - Workspace prefix: "not-sure-" (avoids name collisions across forks)
+#
+# Using a workspace prefix allows multiple workspaces (e.g., "not-sure-main", "not-sure-feature-branch")
+# while avoiding collisions when forks use the same repository name.
 terraform {
   cloud {
     organization = "disposable-org"
     workspaces {
-      name = "not-sure"
+      # Use a prefix so forks don't collide on the same workspace name.
+      prefix = "not-sure-"
     }
   }
 }

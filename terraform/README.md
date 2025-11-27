@@ -15,49 +15,68 @@ This Terraform configuration creates:
 
 ## Prerequisites
 
-1. **Google Cloud Project**: You need a GCP project ID
-2. **Terraform Cloud**: Set up a Terraform Cloud workspace (or modify `backend.tf` for local state)
-3. **Authentication**: Configure authentication for Terraform to access GCP
-   - For local: `gcloud auth application-default login`
-   - For GitHub Actions: Workload Identity Federation (see workflow file)
+* **Terraform** ≥ 1.5.0 (version pinned in `versions.tf` to `< 2.0.0` for stability)
+* **A Terraform Cloud account** with a **remote backend** (or use local backend for testing)
+* **GCP project** with billing enabled
+* **GCP authentication** configured:
+  - For local: `gcloud auth application-default login`
+  - For GitHub Actions: Workload Identity Federation (see workflow file)
 
-## Configuration
+## Usage
 
-### 1. Configure Terraform Cloud Backend
+### Steps
 
-**Important**: The Terraform Cloud backend configuration in `backend.tf` uses hardcoded values (cannot use variables). If you need different values:
+1. **Configure Terraform Cloud Backend** (if using remote backend):
 
-1. Edit `terraform/backend.tf` directly
-2. Update the `organization` and `workspace` name values
+   **Important**: The Terraform Cloud backend configuration in `backend.tf` uses hardcoded values (backend blocks cannot use variables). If you need different values:
+   
+   - Edit `terraform/backend.tf` directly
+   - Update the `organization` value (default: `disposable-org`)
+   - The workspace uses a **prefix** (`not-sure-`) to avoid name collisions across forks
+   
+   Current defaults:
+   - Organization: `disposable-org` (update if different)
+   - Workspace prefix: `not-sure-` (creates workspaces like `not-sure-main`, `not-sure-feature-branch`)
 
-Current defaults:
-- Organization: `disposable-org`
-- Workspace: `not-sure`
+2. **Create a `terraform.tfvars`** (or set environment variables):
 
-### 2. Set Variables
+   ```hcl
+   project_id       = "my-gcp-project"
+   vertex_ai_location = "us-central1"
+   vertex_ai_model    = "gemini-3-pro-preview"
+   ```
+   
+   Or set via environment variables (CI does this automatically):
+   ```bash
+   export TF_VAR_project_id="my-gcp-project"
+   ```
 
-Create a `terraform.tfvars` file (or use environment variables):
+3. **Initialize** the configuration (CI does this automatically):
 
-```hcl
-project_id              = "your-gcp-project-id"
-vertex_ai_location      = "us-central1"
-vertex_ai_model         = "gemini-1.5-pro"
-service_account_id      = "not-sure-vertex-ai"
-```
+   ```bash
+   cd terraform
+   terraform init
+   ```
 
-### 2. Initialize Terraform
+4. **Validate & format** (run locally or rely on CI):
 
-```bash
-cd terraform
-terraform init
-```
+   ```bash
+   terraform fmt -check -recursive terraform/
+   terraform validate
+   ```
 
-### 3. Plan and Apply
+5. **Plan & apply** (once the backend is configured):
 
-```bash
-terraform plan
-terraform apply
-```
+   ```bash
+   terraform plan
+   terraform apply
+   ```
+
+### Notes
+
+* The backend uses a **workspace prefix** (`not-sure-`) to avoid collisions across forks.
+* The `backend.tf` uses hardcoded organization name (required by Terraform - backend blocks cannot use variables).
+* Variables have sensible defaults (see `variables.tf`) - only `project_id` is required.
 
 ## Post-Deployment Steps
 

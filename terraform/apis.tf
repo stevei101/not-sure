@@ -28,7 +28,9 @@ resource "google_project_service" "apis" {
   project = var.project_id
   service = each.value
 
-  disable_on_destroy = false # Keep APIs enabled even if Terraform destroys resources
+  # Prevent accidental deletion of essential APIs when the workspace is destroyed.
+  # Set to true to avoid disabling APIs that may be used by other resources.
+  disable_on_destroy = true
 
   timeouts {
     create = "10m"

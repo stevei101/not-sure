@@ -1,7 +1,7 @@
 variable "project_id" {
-  description = "Google Cloud Project ID"
+  description = "GCP project where Vertex AI resources will be created."
   type        = string
-  # This will be set via environment variable or terraform.tfvars
+  # This will be set via environment variable (TF_VAR_project_id) or terraform.tfvars
 }
 
 variable "default_region" {
