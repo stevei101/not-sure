@@ -20,5 +20,24 @@ This document preserves the updated feature request and acceptance criteria for 
 - Infrastructure: Variables and secrets for vector DB and model providers.
 
 ## Notes
-- Gateway-first policy (no direct provider calls).
+- Gateway-first policy (no direct provider calls) for supported providers.
+  - **Exception**: Vertex AI (Gemini) calls go directly to Google's API (not through Cloudflare AI Gateway) because Gateway does not currently support Vertex AI/Gemini models. This is a temporary architectural deviation until Gateway support is available. See milestone notes below.
 - Prefer Cloudflare-native services (Vectorize, KV, R2) where possible.
+
+## Current Status (as of PR #27)
+
+### Completed ✅
+- **Multi-Model Support**: Gemini integration complete (PR 2.2)
+- **Authentication**: OAuth2 JWT signing with service account authentication
+- **Token Caching**: KV-based OAuth2 token caching for performance
+- **Error Handling**: Structured error codes and enhanced error messages
+- **Status Endpoint**: Enhanced with `vertexAiAuthConfigured` flag
+
+### In Progress 🔄
+- Test coverage: Target ≥70% for new code (unit tests pending for JWT signing and Vertex AI integration)
+
+### Planned 📋
+- Full RAG pipeline (embeddings, vector store, retrieval API)
+- Gateway unification: Migrate Vertex AI to Gateway if/when supported
+- Source attribution and citations in responses
+- Performance monitoring and observability

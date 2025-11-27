@@ -16,6 +16,22 @@ import { Ai } from "@cloudflare/ai";
 
 type AIModel = "cloudflare" | "gemini";
 
+/** Structured error codes for better error differentiation */
+export type ErrorCode = 
+	| "auth_error"           // Authentication/OAuth2 errors
+	| "config_missing"       // Missing required configuration
+	| "provider_error"       // AI provider API errors
+	| "invalid_request"      // Invalid request format
+	| "internal_error";      // Internal server errors
+
+/** Structured error response */
+export interface ErrorResponse {
+	error: string;
+	code: ErrorCode;
+	model?: string;
+	details?: unknown;
+}
+
 export interface Env {
 	AI: Ai;
 	RAG_KV: KVNamespace;
@@ -75,7 +91,9 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		throw new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
+		const error = new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
+		(error as any).code = "provider_error" as ErrorCode;
+		throw error;
 	}
 
 	const data: any = await response.json();
@@ -126,6 +144,10 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
  * Implements JWT signing using Web Crypto API for Google OAuth2 authentication.
  * Tokens are cached in KV to reduce authentication overhead (tokens valid for ~1 hour).
  * 
+ * Note: We use KV storage for token caching instead of in-memory Maps because
+ * Cloudflare Workers are stateless - each request runs in isolation. KV provides
+ * persistent caching across requests, which is essential for OAuth2 token reuse.
+ * 
  * @param serviceAccountJson - Service account JSON key string
  * @param env - Worker environment with KV access for token caching
  * @returns OAuth2 access token for Google APIs
@@ -133,7 +155,8 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
  * TODO: Add unit tests for JWT signing and error handling branches
  */
 async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promise<string> {
-	// Check cache first (tokens are valid for ~1 hour)
+	// Check KV cache first (tokens are valid for ~1 hour)
+	// KV is used instead of in-memory cache because Cloudflare Workers are stateless
 	const cacheKey = "vertex-ai-access-token";
 	const cachedToken = await env.RAG_KV.get(cacheKey);
 	if (cachedToken) {
@@ -144,12 +167,17 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 	let serviceAccount: ServiceAccount;
 	try {
 		serviceAccount = JSON.parse(serviceAccountJson);
-	} catch {
-		throw new Error("Invalid service account JSON format");
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : "unknown error";
+		throw new Error(`Invalid service account JSON format: ${errorMessage}`);
 	}
 
 	if (!serviceAccount.private_key || !serviceAccount.client_email) {
-		throw new Error("Service account JSON missing required fields (private_key, client_email)");
+		const missingFields = [
+			!serviceAccount.private_key && "private_key",
+			!serviceAccount.client_email && "client_email",
+		].filter(Boolean);
+		throw new Error(`Service account JSON missing required fields: ${missingFields.join(", ")}`);
 	}
 
 	// Create JWT for Google OAuth2 token exchange
@@ -221,12 +249,16 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 
 	if (!tokenResponse.ok) {
 		const errorText = await tokenResponse.text();
-		throw new Error(`Failed to get access token (${tokenResponse.status}): ${errorText}`);
+		const error = new Error(`Failed to get access token (${tokenResponse.status}): ${errorText}`);
+		(error as any).code = "auth_error" as ErrorCode;
+		throw error;
 	}
 
 	const tokenData: GoogleTokenResponse = await tokenResponse.json();
 	if (!tokenData.access_token) {
-		throw new Error("No access token in response");
+		const error = new Error("No access token in response");
+		(error as any).code = "auth_error" as ErrorCode;
+		throw error;
 	}
 
 	// Cache the token (use expires_in if provided, otherwise default to 50 minutes to be safe)
@@ -240,11 +272,20 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 	// Validate required Vertex AI configuration
 	if (!env.GCP_PROJECT_ID || !env.VERTEX_AI_LOCATION || !env.VERTEX_AI_MODEL) {
-		throw new Error("Vertex AI configuration missing. Required: GCP_PROJECT_ID, VERTEX_AI_LOCATION, VERTEX_AI_MODEL");
+		const missing = [
+			!env.GCP_PROJECT_ID && "GCP_PROJECT_ID",
+			!env.VERTEX_AI_LOCATION && "VERTEX_AI_LOCATION",
+			!env.VERTEX_AI_MODEL && "VERTEX_AI_MODEL",
+		].filter(Boolean);
+		const error = new Error(`Vertex AI configuration missing. Required: ${missing.join(", ")}`);
+		(error as any).code = "config_missing" as ErrorCode;
+		throw error;
 	}
 
 	if (!env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
-		throw new Error("Vertex AI service account JSON not configured. Set VERTEX_AI_SERVICE_ACCOUNT_JSON secret.");
+		const error = new Error("Vertex AI service account JSON not configured. Set VERTEX_AI_SERVICE_ACCOUNT_JSON secret.");
+		(error as any).code = "config_missing" as ErrorCode;
+		throw error;
 	}
 
 	const projectId = env.GCP_PROJECT_ID;
@@ -284,7 +325,9 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		throw new Error(`Vertex AI error (${response.status}): ${errorText}`);
+		const error = new Error(`Vertex AI error (${response.status}): ${errorText}`);
+		(error as any).code = "provider_error" as ErrorCode;
+		throw error;
 	}
 
 	const data: VertexAIResponse = await response.json();
@@ -292,13 +335,19 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 	// Extract text from Vertex AI response
 	// Handle multiple candidates and parts for robustness
 	if (!data.candidates || data.candidates.length === 0) {
-		throw new Error("No candidates in Vertex AI response");
+		const error = new Error(`No candidates in Vertex AI response. Response structure: ${JSON.stringify(data)}`);
+		(error as any).code = "provider_error" as ErrorCode;
+		(error as any).details = data;
+		throw error;
 	}
 
 	// Try first candidate
 	const firstCandidate = data.candidates[0];
 	if (!firstCandidate?.content?.parts || firstCandidate.content.parts.length === 0) {
-		throw new Error("No content parts in Vertex AI response candidate");
+		const error = new Error(`No content parts in Vertex AI response candidate. Response structure: ${JSON.stringify(data)}`);
+		(error as any).code = "provider_error" as ErrorCode;
+		(error as any).details = data;
+		throw error;
 	}
 
 	// Concatenate all text parts (in case of multi-part responses)
@@ -307,7 +356,10 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 		.filter((text): text is string => typeof text === "string" && text.length > 0);
 
 	if (textParts.length === 0) {
-		throw new Error("No text content in Vertex AI response");
+		const error = new Error(`No text content in Vertex AI response. Response structure: ${JSON.stringify(data)}`);
+		(error as any).code = "provider_error" as ErrorCode;
+		(error as any).details = data;
+		throw error;
 	}
 
 	// Join multiple parts if present, otherwise return single part
@@ -322,7 +374,9 @@ async function callAI(prompt: string, model: AIModel, env: Env): Promise<string>
 		case "gemini":
 			return callGeminiAI(prompt, env);
 		default:
-			throw new Error(`Unknown model: ${model}`);
+			const error = new Error(`Unknown model: ${model}`);
+			(error as any).code = "invalid_request" as ErrorCode;
+			throw error;
 	}
 }
 
@@ -351,21 +405,38 @@ export default {
 		// Health-check endpoint
 		if (request.method === "GET" && url.pathname === "/status") {
 			const models: AIModel[] = ["cloudflare"];
+			const vertexAiConfigured = !!(env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL);
+			const vertexAiAuthConfigured = !!(vertexAiConfigured && env.VERTEX_AI_SERVICE_ACCOUNT_JSON);
+			
 			// Add gemini if Vertex AI is configured
-			if (env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL) {
+			if (vertexAiConfigured) {
 				models.push("gemini");
+			}
+
+			// Check if token is cached (non-blocking, for informational purposes)
+			let vertexAiTokenCached = false;
+			if (vertexAiAuthConfigured) {
+				try {
+					const cachedToken = await env.RAG_KV.get("vertex-ai-access-token");
+					if (cachedToken) {
+						vertexAiTokenCached = true;
+					}
+				} catch {
+					// Ignore KV errors for status check
+				}
 			}
 
 			return new Response(
 				JSON.stringify({
 					ok: true,
-					version: "2.1.0",
+					version: "2.2.1",
 					timestamp: new Date().toISOString(),
 					models,
 					gatewayId: env.AI_GATEWAY_ID,
-					gatewayUrl: getGatewayUrl("test", env), // return constructed URL for verification
-					vertexAiConfigured: !!(env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL),
-
+					gatewayUrl: getGatewayUrl("workers-ai", env),
+					vertexAiConfigured,
+					vertexAiAuthConfigured,
+					vertexAiTokenCached,
 				}),
 				{ headers: { "Content-Type": "application/json", ...corsHeaders } }
 			);
@@ -382,24 +453,44 @@ export default {
 			let body: any;
 			try {
 				body = await request.json();
-			} catch {
-				return new Response("Invalid JSON body", { status: 400, headers: corsHeaders });
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : "unknown error";
+				const errorResponse: ErrorResponse = {
+					error: `Invalid JSON body: ${errorMessage}`,
+					code: "invalid_request",
+				};
+				return new Response(JSON.stringify(errorResponse), {
+					status: 400,
+					headers: { "Content-Type": "application/json", ...corsHeaders },
+				});
 			}
 
 			const prompt: string = body.prompt;
 			const model: AIModel = body.model || "cloudflare";
 
 			if (!prompt) {
-				return new Response('Missing "prompt" field', { status: 400, headers: corsHeaders });
+				const errorResponse: ErrorResponse = {
+					error: 'Missing "prompt" field',
+					code: "invalid_request",
+				};
+				return new Response(JSON.stringify(errorResponse), {
+					status: 400,
+					headers: { "Content-Type": "application/json", ...corsHeaders },
+				});
 			}
 
 			// Validate model
 			const validModels: AIModel[] = ["cloudflare", "gemini"];
 			if (!validModels.includes(model)) {
-				return new Response(
-					JSON.stringify({ error: `Invalid model. Choose from: ${validModels.join(", ")}` }),
-					{ status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-				);
+				const errorResponse: ErrorResponse = {
+					error: `Invalid model. Choose from: ${validModels.join(", ")}`,
+					code: "invalid_request",
+					model,
+				};
+				return new Response(JSON.stringify(errorResponse), {
+					status: 400,
+					headers: { "Content-Type": "application/json", ...corsHeaders },
+				});
 			}
 
 			try {
@@ -427,10 +518,18 @@ export default {
 					headers: { "Content-Type": "application/json", ...corsHeaders },
 				});
 			} catch (error: any) {
-				return new Response(
-					JSON.stringify({ error: error.message || "Internal server error", model }),
-					{ status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-				);
+				// Extract error code if available, default to internal_error
+				const errorCode: ErrorCode = error.code || "internal_error";
+				const errorResponse: ErrorResponse = {
+					error: error.message || "Internal server error",
+					code: errorCode,
+					model,
+					details: error.details,
+				};
+				return new Response(JSON.stringify(errorResponse), {
+					status: 500,
+					headers: { "Content-Type": "application/json", ...corsHeaders },
+				});
 			}
 		}
 
