@@ -1,0 +1,59 @@
+/**
+ * Staging/Preview configuration for Not Sure V2
+ * Deploy with: wrangler deploy --config wrangler.staging.jsonc
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "not-sure-staging",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-11-21",
+	"compatibility_flags": [
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		// The path to the directory containing the built React app
+		"directory": "./dist"
+	},
+	"observability": {
+		"enabled": true,
+	},
+	"kv_namespaces": [
+		{
+			"binding": "RAG_KV",
+			"id": "f6f89996bdfc40048e31ed392167db32"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "not_sure_assets",
+			"bucket_name": "not-sure-assets"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"vars": {
+		"ACCOUNT_ID": "1d361f061ebf3d1a293900bdb815db26",
+		"AI_GATEWAY_ID": "AQ.Ab8RN6JKBAPQhVWbuiBKBT1j9r3lE0Gqj4rfeat0SIo9aQzFFw",
+		"AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1",
+		"AI_GATEWAY_SKIP_PATH_CONSTRUCTION": "false",
+		"ENVIRONMENT": "staging"
+	},
+	/**
+	 * Staging Routes
+	 * Add staging.lornu.ai or v2.lornu.ai subdomain here
+	 * Note: You'll need to configure the DNS record in Cloudflare first
+	 */
+	"routes": [
+		// Uncomment and configure when ready:
+		// {
+		// 	"pattern": "staging.lornu.ai",
+		// 	"custom_domain": true
+		// },
+		// Or use workers.dev subdomain:
+		// {
+		// 	"pattern": "not-sure-staging.*.workers.dev"
+		// }
+	]
+}
+

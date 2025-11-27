@@ -23,7 +23,7 @@ export interface Env {
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
-
+	ASSETS: Fetcher;
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -90,76 +90,102 @@ export default {
 	async fetch(request: Request, env: Env) {
 		const url = new URL(request.url);
 
+		// Handle CORS preflight
+		if (request.method === "OPTIONS") {
+			return new Response(null, {
+				headers: {
+					"Access-Control-Allow-Origin": "*",
+					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+					"Access-Control-Allow-Headers": "Content-Type",
+				},
+			});
+		}
+
+		// CORS headers for all responses
+		const corsHeaders = {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type",
+		};
+
 		// Health-check endpoint
 		if (request.method === "GET" && url.pathname === "/status") {
 			return new Response(
 				JSON.stringify({
 					ok: true,
-					version: "2.1.0",
+					version: "2.0.0",
 					timestamp: new Date().toISOString(),
 					models: ["cloudflare"],
 					gatewayId: env.AI_GATEWAY_ID,
 					gatewayUrl: getGatewayUrl("test", env) // return constructed URL for verification
 
 				}),
-				{ headers: { "Content-Type": "application/json" } }
+				{ headers: { "Content-Type": "application/json", ...corsHeaders } }
 			);
 		}
 
 		// RAG query endpoint
-		if (request.method !== "POST" || url.pathname !== "/query") {
-			return new Response("Only POST /query is supported", { status: 404 });
-		}
-
-		let body: any;
-		try {
-			body = await request.json();
-		} catch {
-			return new Response("Invalid JSON body", { status: 400 });
-		}
-
-		const prompt: string = body.prompt;
-		const model: AIModel = body.model || "cloudflare";
-
-		if (!prompt) {
-			return new Response('Missing "prompt" field', { status: 400 });
-		}
-
-		// Validate model
-		const validModels: AIModel[] = ["cloudflare"];
-		if (!validModels.includes(model)) {
-			return new Response(
-				JSON.stringify({ error: `Invalid model. Choose from: ${validModels.join(", ")}` }),
-				{ status: 400, headers: { "Content-Type": "application/json" } }
-			);
-		}
-
-		try {
-			// 1️⃣ Try cached context from KV (cache per model+prompt combination)
-			const key = await hashPrompt(prompt, model);
-			const cached = await env.RAG_KV.get(key);
-
-			// If cached, return immediately
-			if (cached) {
-				return new Response(JSON.stringify({ answer: cached, cached: true, model }), {
-					headers: { "Content-Type": "application/json" },
+		if (url.pathname === "/query") {
+			if (request.method !== "POST") {
+				return new Response("Only POST /query is supported", { 
+					status: 404, 
+					headers: corsHeaders 
 				});
 			}
+			let body: any;
+			try {
+				body = await request.json();
+			} catch {
+				return new Response("Invalid JSON body", { status: 400, headers: corsHeaders });
+			}
 
-			// 2️⃣ Call the selected AI model
-			const answer = await callAI(prompt, model, env);
+			const prompt: string = body.prompt;
+			const model: AIModel = body.model || "cloudflare";
 
-			//️ 3️⃣ Cache the answer for future identical prompts (1‑week TTL)
-			await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+			if (!prompt) {
+				return new Response('Missing "prompt" field', { status: 400, headers: corsHeaders });
+			}
 
-			return new Response(JSON.stringify({ answer, cached: false, model }), {
-				headers: { "Content-Type": "application/json" },
-			});
-		} catch (error: any) {
-			return new Response(
-				JSON.stringify({ error: error.message || "Internal server error", model }),
-				{ status: 500, headers: { "Content-Type": "application/json" } }
-			);
+			// Validate model
+			const validModels: AIModel[] = ["cloudflare"];
+			if (!validModels.includes(model)) {
+				return new Response(
+					JSON.stringify({ error: `Invalid model. Choose from: ${validModels.join(", ")}` }),
+					{ status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+				);
+			}
+
+			try {
+				// 1️⃣ Try cached context from KV (cache per model+prompt combination)
+				const key = await hashPrompt(prompt, model);
+				const cached = await env.RAG_KV.get(key);
+
+				// If cached, return immediately
+				if (cached) {
+					return new Response(JSON.stringify({ answer: cached, cached: true, model }), {
+						headers: { "Content-Type": "application/json", ...corsHeaders },
+					});
+				}
+
+				// 2️⃣ Call the selected AI model
+				const answer = await callAI(prompt, model, env);
+
+				//️ 3️⃣ Cache the answer for future identical prompts (1‑week TTL)
+				await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+
+				return new Response(JSON.stringify({ answer, cached: false, model }), {
+					headers: { "Content-Type": "application/json", ...corsHeaders },
+				});
+			} catch (error: any) {
+				return new Response(
+					JSON.stringify({ error: error.message || "Internal server error", model }),
+					{ status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+				);
+			}
 		}
+
+		// For static assets (React app), delegate to ASSETS fetcher
+		// This will serve files from the dist directory
+		return env.ASSETS.fetch(request);
 	},
 } satisfies ExportedHandler<Env>;
