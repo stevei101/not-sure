@@ -1,7 +1,9 @@
 provider "google" {
   project = var.project_id
   region  = var.default_region
-  # Terraform Cloud uses GCP workspace integration for authentication
-  # No explicit credentials needed when integration is configured
+  # For Terraform Cloud remote execution:
+  # Credentials must be set as GOOGLE_CREDENTIALS environment variable in Terraform Cloud workspace
+  # The GOOGLE_CREDENTIALS env var should contain the service account key JSON
+  # Run: terraform/scripts/setup-terraform-cloud-credentials.sh to automate setup
 }
 
