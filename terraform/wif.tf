@@ -88,6 +88,7 @@ resource "google_service_account_iam_member" "github_actions_impersonate_vertex_
 
 # Allow GitHub Actions to impersonate the service account via Workload Identity
 # This binding allows the GitHub Actions workflow to assume the service account identity
+# The principalSet restricts access to only the specified GitHub repository
 resource "google_service_account_iam_member" "github_actions_workload_identity_user" {
   service_account_id = google_service_account.github_actions.name
   role               = "roles/iam.workloadIdentityUser"

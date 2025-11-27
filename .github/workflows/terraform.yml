@@ -152,14 +152,25 @@ jobs:
         working-directory: terraform
         run: terraform apply -auto-approve -input=false -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
 
-      - name: Output Service Account Email
+      - name: Output Terraform Outputs
         if: github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
         working-directory: terraform
         run: |
-          echo "Service Account Email:" >> $GITHUB_STEP_SUMMARY
+          echo "## Terraform Apply Outputs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Service Account (for Cloudflare Workers)" >> $GITHUB_STEP_SUMMARY
           terraform output -raw service_account_email >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "See terraform/README.md for next steps to complete the setup."
+          echo "### Workload Identity Federation (for GitHub Actions)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**WIF_PROVIDER:**" >> $GITHUB_STEP_SUMMARY
+          terraform output -raw wif_provider >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**WIF_SERVICE_ACCOUNT:**" >> $GITHUB_STEP_SUMMARY
+          terraform output -raw wif_service_account >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 Add these values to GitHub Secrets to enable automated Terraform apply:" >> $GITHUB_STEP_SUMMARY
+          echo "See terraform/README.md for next steps."
 
       - name: Note About GCP Authentication
         if: steps.check_wif.outputs.wif_configured == 'false'
