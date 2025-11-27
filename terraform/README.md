@@ -8,12 +8,10 @@ This directory contains Terraform configuration to automate the setup of Google 
 
 This Terraform configuration creates:
 - ✅ Vertex AI API enablement
-
-**Future PRs will add:**
-- Service account with appropriate IAM roles
-- **Service account key generation (automatic!)**
-- Secret Manager secret with stored service account JSON key
-- IAM bindings for service account access
+- ✅ Service account with appropriate IAM roles for Vertex AI access
+- ✅ Service account key generation (automatic JSON key)
+- ✅ Secret Manager secret with stored service account JSON key
+- ✅ IAM bindings for service account access
 
 ## Prerequisites
 
@@ -82,30 +80,28 @@ This Terraform configuration creates:
 
 ## Post-Deployment Steps
 
-> **Note**: These steps are for future PRs that will add service account resources. This PR only enables APIs.
-
-After future PRs create service account resources:
+After Terraform creates the service account and stores the key:
 
 1. **Retrieve Service Account Key** (automatically generated and stored by Terraform):
    ```bash
-   # Option 1: Use helper script (easiest)
-   ./terraform/scripts/get-service-account-key.sh [PROJECT_ID]
-   
-   # Option 2: Manual retrieval
+   # Option 1: Use gcloud directly
    gcloud secrets versions access latest \
-     --secret="VERTEX_AI_SERVICE_ACCOUNT_JSON" \
+     --secret="vertex-ai-service-account-key" \
      --project=$(terraform output -raw project_id) | \
    wrangler secret put VERTEX_AI_SERVICE_ACCOUNT_JSON
+   
+   # Option 2: Using Terraform output (shows exact command)
+   terraform output setup_instructions
    ```
 
 2. **Set Other Cloudflare Worker Secrets**:
    ```bash
    wrangler secret put GCP_PROJECT_ID      # Same as GitHub secret
    wrangler secret put VERTEX_AI_LOCATION  # e.g., us-central1
-   wrangler secret put VERTEX_AI_MODEL     # e.g., gemini-1.5-flash
+   wrangler secret put VERTEX_AI_MODEL     # e.g., gemini-3-pro-preview
    ```
    
-   Or use API key instead (simpler):
+   Or use API key instead (simpler, but less secure):
    ```bash
    wrangler secret put GCP_PROJECT_ID
    wrangler secret put GEMINI_API_KEY      # Same API key works for both!
@@ -117,30 +113,41 @@ See `.github/workflows/terraform.yml` for automated Terraform execution via GitH
 
 ## Resources Created
 
-This PR only creates API enablement resources:
+### APIs Enabled
+- `aiplatform.googleapis.com` - Vertex AI API
+- `iam.googleapis.com` - IAM API
+- `secretmanager.googleapis.com` - Secret Manager API
+- `cloudresourcemanager.googleapis.com` - Resource Manager API
+- `serviceusage.googleapis.com` - Service Usage API
+- `iamcredentials.googleapis.com` - IAM Credentials API (for Workload Identity Federation)
+- `sts.googleapis.com` - Security Token Service API (for Workload Identity Federation)
 
-- **APIs Enabled**:
-  - `aiplatform.googleapis.com` - Vertex AI API
-  - `iam.googleapis.com` - IAM API
-  - `secretmanager.googleapis.com` - Secret Manager API
-  - `cloudresourcemanager.googleapis.com` - Resource Manager API
-  - `serviceusage.googleapis.com` - Service Usage API
-  - `iamcredentials.googleapis.com` - IAM Credentials API (for Workload Identity Federation)
-  - `sts.googleapis.com` - Security Token Service API (for Workload Identity Federation)
-
-**Future PRs will create:**
-- Service Account with appropriate IAM roles
-- Secret Manager secret with service account JSON key
-- IAM bindings for service account access
+### Service Account Resources
+- **Service Account**: `cloudflare-workers-vertex-ai` (default) or configured via `service_account_id` variable
+  - IAM Roles:
+    - `roles/aiplatform.user` - Vertex AI access
+    - `roles/iam.serviceAccountUser` - Service account usage
+- **Service Account Key**: JSON key automatically generated and stored
+- **Secret Manager Secret**: `vertex-ai-service-account-key`
+  - Stores the service account JSON key securely
+  - Automatically replicated across regions
 
 ## Outputs
 
-> **Note**: Outputs will be added in future PRs when service account resources are created.
+After applying, Terraform provides these outputs:
 
-After applying, Terraform currently has no outputs. Future PRs will add outputs like:
-- `service_account_email`
-- `secret_name`
-- `setup_instructions`
+- `service_account_email` - Email of the service account
+- `service_account_id` - Resource ID of the service account
+- `secret_name` - Name of the Secret Manager secret containing the key
+- `secret_project` - Project ID where the secret is stored
+- `setup_instructions` - Instructions for retrieving the service account key
+
+To view outputs:
+```bash
+terraform output
+terraform output service_account_email
+terraform output setup_instructions
+```
 
 ## Troubleshooting
 
