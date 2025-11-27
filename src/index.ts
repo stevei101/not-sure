@@ -13,6 +13,7 @@
  */
 
 import { Ai } from "@cloudflare/ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 type AIModel = "cloudflare" | "vertex-ai";
 
@@ -24,9 +25,9 @@ export interface Env {
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
-	// Gemini API Configuration (via Cloudflare AI Gateway OpenAI-compatible endpoint)
-	GEMINI_API_KEY?: string; // Gemini API key for OpenAI-compatible endpoint
-	GEMINI_MODEL?: string; // e.g., "google-ai-studio/gemini-2.5" or "google-ai-studio/gemini-1.5-pro"
+	// Gemini API Configuration (via Cloudflare AI Gateway)
+	GOOGLE_AI_STUDIO_TOKEN?: string; // Google AI Studio API key (configured in Cloudflare AI Gateway)
+	GEMINI_MODEL?: string; // e.g., "gemini-1.5-flash" or "gemini-1.5-pro"
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -103,74 +104,31 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 	throw new Error("Unable to extract response from Cloudflare AI: unexpected response format");
 }
 
-/** Call Google Gemini via Cloudflare AI Gateway (OpenAI-compatible endpoint) */
+/** Call Google Gemini via Cloudflare AI Gateway using native SDK */
 async function callVertexAI(prompt: string, env: Env): Promise<string> {
-	if (!env.GEMINI_API_KEY) {
-		throw new Error("Gemini API configuration missing: GEMINI_API_KEY must be set");
+	if (!env.GOOGLE_AI_STUDIO_TOKEN) {
+		throw new Error("Gemini API configuration missing: GOOGLE_AI_STUDIO_TOKEN must be set");
 	}
 
-	const model = env.GEMINI_MODEL || "google-ai-studio/gemini-2.5";
+	const modelName = env.GEMINI_MODEL || "gemini-1.5-flash";
 	
-	// Prepare messages in OpenAI-compatible format (used by Cloudflare AI Gateway)
-	const messages = [
-		{ role: "system", content: "You are a helpful AI assistant." },
-		{ role: "user", content: prompt }
-	];
-
-	// Use Cloudflare AI Gateway's OpenAI-compatible endpoint for Gemini
-	// Format: /v1/{account_id}/default/compat/chat/completions
-	// Note: "default" is a special keyword for the OpenAI-compatible endpoint
-	const gatewayEndpoint = `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/default/compat/chat/completions`;
-
-	// Prepare headers
-	const headers: Record<string, string> = {
-		"Content-Type": "application/json",
-		"Authorization": `Bearer ${env.GEMINI_API_KEY}`
-	};
-
-	const requestBody = {
-		model: model,
-		messages: messages
-	};
-
-	const response = await fetch(gatewayEndpoint, {
-		method: "POST",
-		headers,
-		body: JSON.stringify(requestBody)
-	});
-
-	if (!response.ok) {
-		let errorText: string;
-		try {
-			errorText = await response.text();
-		} catch {
-			errorText = `HTTP ${response.status} ${response.statusText}`;
-		}
-		throw new Error(`Gemini API error (${response.status}): ${errorText}`);
-	}
-
-	const data: any = await response.json();
+	// Initialize Google Generative AI SDK with custom baseUrl pointing to Cloudflare AI Gateway
+	// The gateway endpoint format: /v1/{account_id}/default/google-ai-studio
+	const gatewayBaseUrl = `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/default/google-ai-studio`;
 	
-	// Extract response from OpenAI-compatible format
-	// Response format: { choices: [{ message: { content: "..." } }] }
-	if (data.choices && data.choices[0]?.message?.content) {
-		return data.choices[0].message.content;
-	}
-	
-	// Fallback for different response formats
-	if (data.content) {
-		return typeof data.content === "string" ? data.content : JSON.stringify(data.content);
-	}
-	
-	if (data.text) {
-		return data.text;
-	}
-	
-	if (typeof data === "string") {
-		return data;
-	}
+	const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_STUDIO_TOKEN);
+	const model = genAI.getGenerativeModel(
+		{ model: modelName },
+		{ baseUrl: gatewayBaseUrl }
+	);
 
-	throw new Error("Unable to extract response from Gemini API: unexpected response format");
+	try {
+		const result = await model.generateContent([prompt]);
+		const response = await result.response;
+		return response.text();
+	} catch (error: any) {
+		throw new Error(`Gemini API error: ${error.message || error.toString()}`);
+	}
 }
 
 /** Route to the appropriate AI model */
@@ -193,7 +151,7 @@ export default {
 		if (request.method === "GET" && url.pathname === "/status") {
 			const models = ["cloudflare"];
 			// Add vertex-ai if configured
-			if (env.GEMINI_API_KEY) {
+			if (env.GOOGLE_AI_STUDIO_TOKEN) {
 				models.push("vertex-ai");
 			}
 
@@ -205,8 +163,8 @@ export default {
 					models,
 					gatewayId: env.AI_GATEWAY_ID,
 					gatewayUrl: getGatewayUrl("test", env), // return constructed URL for verification
-					vertexAI: env.GEMINI_API_KEY ? {
-						model: env.GEMINI_MODEL || "google-ai-studio/gemini-2.5",
+					vertexAI: env.GOOGLE_AI_STUDIO_TOKEN ? {
+						model: env.GEMINI_MODEL || "gemini-1.5-flash",
 						configured: true
 					} : { configured: false }
 				}),
@@ -235,7 +193,7 @@ export default {
 
 		// Validate model - build list dynamically based on configuration
 		const validModels: AIModel[] = ["cloudflare"];
-		if (env.GEMINI_API_KEY) {
+		if (env.GOOGLE_AI_STUDIO_TOKEN) {
 			validModels.push("vertex-ai");
 		}
 		if (!validModels.includes(model)) {

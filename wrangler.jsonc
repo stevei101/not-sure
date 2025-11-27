@@ -53,10 +53,10 @@
 		"AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1",
 		// Set to "true" if using a custom domain that maps directly to the gateway provider path
 		"AI_GATEWAY_SKIP_PATH_CONSTRUCTION": "false",
-		// Gemini API Configuration (via Cloudflare AI Gateway OpenAI-compatible endpoint)
-		// "GEMINI_MODEL": "google-ai-studio/gemini-2.5"
-		// Note: GEMINI_API_KEY should be set as a secret via:
-		// wrangler secret put GEMINI_API_KEY
+		// Gemini API Configuration (via Cloudflare AI Gateway native SDK)
+		// "GEMINI_MODEL": "gemini-1.5-flash"
+		// Note: GOOGLE_AI_STUDIO_TOKEN should be set as a secret via:
+		// wrangler secret put GOOGLE_AI_STUDIO_TOKEN
 		// The API key is already configured in Cloudflare AI Gateway dashboard
 	},
 	/**
