@@ -2,8 +2,7 @@ name: Terraform Infrastructure
 
 on:
   push:
-    branches:
-      - main
+    branches: ['**']  # Run validation on all branches
     paths:
       - 'terraform/**'
       - '.github/workflows/terraform.yml'
