@@ -37,17 +37,9 @@ variable "service_account_display_name" {
 # Note: These variables are not used in backend.tf (backend cannot use variables)
 # They are kept for reference/documentation purposes only
 # The actual values are hardcoded in backend.tf
-variable "terraform_cloud_organization" {
-  description = "Terraform Cloud organization name (for reference only - actual value in backend.tf)"
-  type        = string
-  default     = "disposable-org"
-}
-
-variable "terraform_cloud_workspace" {
-  description = "Terraform Cloud workspace name (for reference only - actual value in backend.tf)"
-  type        = string
-  default     = "not-sure"
-}
+# Note: Terraform Cloud backend configuration (organization/workspace) cannot use variables
+# These values must be hardcoded in backend.tf - see backend.tf for current configuration
+# Variables removed to avoid TFLint warnings about unused declarations
 
 variable "environment" {
   description = "Environment name (dev, staging, prod)"

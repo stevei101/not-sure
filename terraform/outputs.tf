@@ -1,7 +1,7 @@
 # Service Account Outputs
 output "service_account_email" {
   description = "Service account email for Cloudflare Workers Vertex AI access"
-  value       = google_service_account.vertex_ai.email
+  value       = local.service_account_email
   sensitive   = false
 }
 
