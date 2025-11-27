@@ -1,9 +1,15 @@
 # Secret Manager Secret for Service Account Key
+# Requires Secret Manager API to be enabled first
 
 # Create Secret Manager secret to store the service account key
 resource "google_secret_manager_secret" "vertex_ai_sa_key" {
   project   = var.project_id
   secret_id = "vertex-ai-service-account-key"
+
+  # Ensure Secret Manager API is enabled before creating the secret
+  depends_on = [
+    google_project_service.apis["secretmanager.googleapis.com"]
+  ]
 
   replication {
     auto {}
