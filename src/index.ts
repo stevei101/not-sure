@@ -120,8 +120,26 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
 	return bytes.buffer;
 }
 
-/** Generate Google OAuth2 access token from service account JSON */
-async function getGoogleAccessToken(serviceAccountJson: string): Promise<string> {
+/**
+ * Generate Google OAuth2 access token from service account JSON
+ * 
+ * Implements JWT signing using Web Crypto API for Google OAuth2 authentication.
+ * Tokens are cached in KV to reduce authentication overhead (tokens valid for ~1 hour).
+ * 
+ * @param serviceAccountJson - Service account JSON key string
+ * @param env - Worker environment with KV access for token caching
+ * @returns OAuth2 access token for Google APIs
+ * 
+ * TODO: Add unit tests for JWT signing and error handling branches
+ */
+async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promise<string> {
+	// Check cache first (tokens are valid for ~1 hour)
+	const cacheKey = "vertex-ai-access-token";
+	const cachedToken = await env.RAG_KV.get(cacheKey);
+	if (cachedToken) {
+		return cachedToken;
+	}
+
 	// Parse service account JSON
 	let serviceAccount: ServiceAccount;
 	try {
@@ -210,6 +228,11 @@ async function getGoogleAccessToken(serviceAccountJson: string): Promise<string>
 	if (!tokenData.access_token) {
 		throw new Error("No access token in response");
 	}
+
+	// Cache the token (use expires_in if provided, otherwise default to 50 minutes to be safe)
+	const cacheTtl = tokenData.expires_in ? Math.max(tokenData.expires_in - 600, 3000) : 3000; // Subtract 10 min buffer, min 50 min
+	await env.RAG_KV.put(cacheKey, tokenData.access_token, { expirationTtl: cacheTtl });
+
 	return tokenData.access_token;
 }
 
@@ -229,6 +252,9 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 	const model = env.VERTEX_AI_MODEL;
 
 	// Vertex AI REST API endpoint for Gemini models
+	// Note: Vertex AI calls go directly to Google's API (not through Cloudflare AI Gateway)
+	// as Cloudflare AI Gateway does not currently support Vertex AI/Gemini models.
+	// This is an architectural deviation from the Cloudflare AI routing pattern.
 	const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
 
 	// Format request for Vertex AI
@@ -244,8 +270,8 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 		],
 	};
 
-	// Get access token using service account (JWT signing implemented)
-	const accessToken = await getGoogleAccessToken(env.VERTEX_AI_SERVICE_ACCOUNT_JSON);
+	// Get access token using service account (JWT signing implemented, with caching)
+	const accessToken = await getGoogleAccessToken(env.VERTEX_AI_SERVICE_ACCOUNT_JSON, env);
 
 	const response = await fetch(endpoint, {
 		method: "POST",
@@ -262,12 +288,30 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 	}
 
 	const data: VertexAIResponse = await response.json();
+
 	// Extract text from Vertex AI response
-	const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-	if (!text) {
-		throw new Error("No response text from Vertex AI");
+	// Handle multiple candidates and parts for robustness
+	if (!data.candidates || data.candidates.length === 0) {
+		throw new Error("No candidates in Vertex AI response");
 	}
-	return text;
+
+	// Try first candidate
+	const firstCandidate = data.candidates[0];
+	if (!firstCandidate?.content?.parts || firstCandidate.content.parts.length === 0) {
+		throw new Error("No content parts in Vertex AI response candidate");
+	}
+
+	// Concatenate all text parts (in case of multi-part responses)
+	const textParts = firstCandidate.content.parts
+		.map((part) => part.text)
+		.filter((text): text is string => typeof text === "string" && text.length > 0);
+
+	if (textParts.length === 0) {
+		throw new Error("No text content in Vertex AI response");
+	}
+
+	// Join multiple parts if present, otherwise return single part
+	return textParts.join("\n\n");
 }
 
 /** Route to the appropriate AI model */
