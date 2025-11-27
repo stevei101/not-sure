@@ -35,7 +35,7 @@ output "setup_instructions" {
     wrangler secret put VERTEX_AI_SERVICE_ACCOUNT_JSON
     
     Or use the helper script:
-    ./terraform/scripts/get-service-account-key.sh ${var.project_id}
+    ./scripts/get-service-account-key.sh ${var.project_id}
   EOT
   sensitive   = false
 }

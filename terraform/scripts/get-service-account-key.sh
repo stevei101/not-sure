@@ -26,12 +26,7 @@ if [ -z "$PROJECT_ID" ]; then
   # Try to get from terraform output if we're in the terraform directory
   if [ -f "$TERRAFORM_DIR/terraform.tfstate" ] || [ -d "$TERRAFORM_DIR/.terraform" ]; then
     cd "$TERRAFORM_DIR"
-    # Try secret_project output first, then fall back to variable lookup
     PROJECT_ID=$(terraform output -raw secret_project 2>/dev/null || echo "")
-    if [ -z "$PROJECT_ID" ]; then
-      # If no output, try to get from terraform variables
-      PROJECT_ID=$(terraform output -json 2>/dev/null | grep -o '"secret_project"[^}]*' | grep -o '"[^"]*"' | head -1 | tr -d '"' || echo "")
-    fi
   fi
 fi
 

@@ -40,11 +40,14 @@ gcloud projects get-iam-policy vertex-ai-rag-search-p0 \
   --format="table(bindings.role)"
 ```
 
-Then import each role binding (replace ROLE_NAME with actual role):
+Then import each role binding:
 
 ```bash
 terraform import 'google_project_iam_member.vertex_ai_roles["roles/aiplatform.user"]' \
   "projects/vertex-ai-rag-search-p0 roles/aiplatform.user serviceAccount:cloudflare-workers-vertex-ai@vertex-ai-rag-search-p0.iam.gserviceaccount.com"
+
+terraform import 'google_project_iam_member.vertex_ai_roles["roles/iam.serviceAccountUser"]' \
+  "projects/vertex-ai-rag-search-p0 roles/iam.serviceAccountUser serviceAccount:cloudflare-workers-vertex-ai@vertex-ai-rag-search-p0.iam.gserviceaccount.com"
 ```
 
 ### 4. Verify Import

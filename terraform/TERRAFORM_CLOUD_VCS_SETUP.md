@@ -12,7 +12,7 @@ The Terraform Cloud workspace is not connected to your GitHub repository, so it 
 
 ### Step 1: Go to Workspace Settings
 
-1. Navigate to: https://app.terraform.io/app/disposable-org/workspaces/not-sure
+1. Navigate to: https://app.terraform.io/app/<YOUR_ORGANIZATION>/workspaces/<YOUR_WORKSPACE>
 2. Click on **"Settings"** (top right)
 3. Click on **"General Settings"** or **"Version Control"**
 
@@ -22,7 +22,7 @@ The Terraform Cloud workspace is not connected to your GitHub repository, so it 
 2. Click **"Connect a VCS provider"** or **"Connect to GitHub"**
 3. If not already connected:
    - Authorize Terraform Cloud to access your GitHub account
-   - Select the repository: `stevei101/not-sure`
+   - Select the repository: `<owner>/<repository-name>`
    - Select the branch: `develop` (or `main`)
    - Set **"Terraform Working Directory"** to: `terraform`
 
@@ -70,7 +70,7 @@ This tells Terraform Cloud that your `.tf` files are in the `terraform/` subdire
 
 1. **Check Working Directory**: Ensure it's set to `terraform` (not root `/`)
 2. **Check Branch**: Make sure the workspace is watching the correct branch (`develop` or `main`)
-3. **Check Repository**: Verify it's connected to `stevei101/not-sure`
+3. **Check Repository**: Verify it's connected to `<owner>/<repository-name>`
 4. **Check File Structure**: Ensure `terraform/*.tf` files exist in the repository
 
 ### Workspace Can't Find Files?

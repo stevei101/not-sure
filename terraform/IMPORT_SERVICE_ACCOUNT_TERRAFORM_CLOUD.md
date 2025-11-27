@@ -17,7 +17,7 @@ Since we're using Terraform Cloud, the import needs to be done through Terraform
 ### Step 1: Run "Plan Only" in UI (Optional)
 
 First, run a "Plan Only" in Terraform Cloud UI to see what Terraform would create:
-- Go to: https://app.terraform.io/app/disposable-org/workspaces/not-sure
+- Go to: https://app.terraform.io/app/<YOUR_ORGANIZATION>/workspaces/<YOUR_WORKSPACE>
 - Click "Actions" → "Start new plan" → Select "Plan Only"
 - This shows you what resources Terraform wants to create
 

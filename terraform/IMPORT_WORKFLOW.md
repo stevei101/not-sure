@@ -8,7 +8,7 @@
 
 ### 1. First, Run "Plan Only" (Optional - to see what would be created)
 
-1. Go to: https://app.terraform.io/app/disposable-org/workspaces/not-sure
+1. Go to: https://app.terraform.io/app/<YOUR_ORGANIZATION>/workspaces/<YOUR_WORKSPACE>
 2. Click "Actions" → "Start new plan"
 3. Select **"Plan Only"**
 4. This shows you what Terraform would create (the service account)

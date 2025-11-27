@@ -9,7 +9,7 @@ Error 403: Permission 'iam.serviceAccounts.get' denied on resource
 
 ## Root Cause
 
-The local GCP account (`s73ven.1rvin@gmail.com`) doesn't have access to the project `vertex-ai-rag-search-p0`.
+The local GCP account (`<your-email@example.com>`) doesn't have access to the project `vertex-ai-rag-search-p0`.
 
 ## Solutions
 
@@ -28,7 +28,7 @@ gcloud auth application-default login
 # Then retry the import
 cd terraform
 export TF_VAR_project_id="vertex-ai-rag-search-p0"
-/opt/homebrew/bin/terraform import \
+terraform import \
   -var="project_id=vertex-ai-rag-search-p0" \
   google_service_account.vertex_ai \
   projects/vertex-ai-rag-search-p0/serviceAccounts/cloudflare-workers-vertex-ai@vertex-ai-rag-search-p0.iam.gserviceaccount.com
