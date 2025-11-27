@@ -25,13 +25,13 @@ variable "vertex_ai_model" {
 variable "service_account_id" {
   description = "Service account ID for Cloudflare Workers Vertex AI access"
   type        = string
-  default     = "not-sure-vertex-ai"
+  default     = "cloudflare-workers-vertex-ai"
 }
 
 variable "service_account_display_name" {
   description = "Display name for the service account"
   type        = string
-  default     = "Not Sure - Vertex AI Service Account"
+  default     = "Cloudflare Workers Vertex AI"
 }
 
 # Note: These variables are not used in backend.tf (backend cannot use variables)
