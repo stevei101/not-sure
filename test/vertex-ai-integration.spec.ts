@@ -1,0 +1,167 @@
+/**
+ * Integration tests for Vertex AI functions through the worker
+ * 
+ * Tests the actual functions as they work in the worker context,
+ * using mocks for external dependencies (fetch, KV).
+ */
+
+import { env, SELF } from 'cloudflare:test';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import worker from '../src';
+
+describe('Vertex AI Integration - Endpoint Tests', () => {
+	const mockEnv = {
+		...env,
+		GCP_PROJECT_ID: 'test-project',
+		VERTEX_AI_LOCATION: 'us-central1',
+		VERTEX_AI_MODEL: 'gemini-pro',
+		VERTEX_AI_SERVICE_ACCOUNT_JSON: JSON.stringify({
+			private_key: '-----BEGIN PRIVATE KEY-----\nMOCK\n-----END PRIVATE KEY-----',
+			client_email: 'test@test-project.iam.gserviceaccount.com'
+		}),
+	};
+
+	beforeEach(() => {
+		// Reset mocks
+		vi.clearAllMocks();
+	});
+
+	describe('/status endpoint - Vertex AI configuration', () => {
+		it('should show vertexAiConfigured when config is present', async () => {
+			const request = new Request('http://example.com/status');
+			const response = await worker.fetch(request, mockEnv as any);
+			const data = await response.json() as any;
+
+			expect(response.status).toBe(200);
+			expect(data.vertexAiConfigured).toBe(true);
+			expect(data.models).toContain('gemini');
+		});
+
+		it('should show vertexAiAuthConfigured when service account is present', async () => {
+			const request = new Request('http://example.com/status');
+			const response = await worker.fetch(request, mockEnv as any);
+			const data = await response.json() as any;
+
+			expect(response.status).toBe(200);
+			expect(data.vertexAiAuthConfigured).toBe(true);
+		});
+
+		it('should show vertexAiConfigured false when config is missing', async () => {
+			const envWithoutConfig = {
+				...env,
+				// Missing Vertex AI config
+			};
+			
+			const request = new Request('http://example.com/status');
+			const response = await worker.fetch(request, envWithoutConfig as any);
+			const data = await response.json() as any;
+
+			expect(response.status).toBe(200);
+			expect(data.vertexAiConfigured).toBe(false);
+			expect(data.vertexAiAuthConfigured).toBe(false);
+			expect(data.models).not.toContain('gemini');
+		});
+
+		it('should show vertexAiAuthConfigured false when service account is missing', async () => {
+			const envWithoutAuth = {
+				...mockEnv,
+				VERTEX_AI_SERVICE_ACCOUNT_JSON: undefined,
+			};
+			
+			const request = new Request('http://example.com/status');
+			const response = await worker.fetch(request, envWithoutAuth as any);
+			const data = await response.json() as any;
+
+			expect(response.status).toBe(200);
+			expect(data.vertexAiConfigured).toBe(true); // Config is there
+			expect(data.vertexAiAuthConfigured).toBe(false); // But auth is not
+		});
+	});
+
+	describe('/query endpoint - Vertex AI error handling', () => {
+		it('should return structured error with config_missing code', async () => {
+			const envWithoutConfig = {
+				...env,
+				// Missing Vertex AI config
+			};
+
+			const request = new Request('http://example.com/query', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ prompt: 'test', model: 'gemini' })
+			});
+
+			const response = await worker.fetch(request, envWithoutConfig as any);
+			const data = await response.json() as any;
+
+			expect(response.status).toBe(500);
+			expect(data.code).toBe('config_missing');
+			expect(data.error).toContain('Vertex AI configuration missing');
+		});
+
+		it('should return structured error for invalid JSON body', async () => {
+			const request = new Request('http://example.com/query', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: '{ invalid json }'
+			});
+
+			const response = await worker.fetch(request, env as any);
+			const data = await response.json() as any;
+
+			expect(response.status).toBe(400);
+			expect(data.code).toBe('invalid_request');
+			expect(data.error).toContain('Invalid JSON body');
+		});
+
+		it('should validate gemini model is accepted', async () => {
+			const request = new Request('http://example.com/query', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ prompt: 'test', model: 'gemini' })
+			});
+
+			// This will fail due to missing config, but model validation should pass
+			const response = await worker.fetch(request, env as any);
+			const data = await response.json() as any;
+
+			// Should not be an invalid model error
+			expect(data.code).not.toBe('invalid_request');
+			expect(data.error).not.toContain('Invalid model');
+		});
+	});
+
+	describe('Error response structure', () => {
+		it('should return ErrorResponse format with code field', async () => {
+			const request = new Request('http://example.com/query', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({}) // Missing prompt
+			});
+
+			const response = await worker.fetch(request, env as any);
+			const data = await response.json() as any;
+
+			expect(response.status).toBe(400);
+			expect(data).toHaveProperty('error');
+			expect(data).toHaveProperty('code');
+			expect(data.code).toBe('invalid_request');
+		});
+
+		it('should include model in error response when model is specified', async () => {
+			const request = new Request('http://example.com/query', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ prompt: 'test', model: 'gemini' })
+			});
+
+			const envWithoutConfig = { ...env };
+			const response = await worker.fetch(request, envWithoutConfig as any);
+			const data = await response.json() as any;
+
+			expect(data).toHaveProperty('model');
+			expect(data.model).toBe('gemini');
+		});
+	});
+});
+

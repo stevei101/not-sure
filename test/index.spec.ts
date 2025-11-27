@@ -15,6 +15,20 @@ describe('AI Worker', () => {
 			expect(data.ok).toBe(true);
 			expect(data.version).toBeDefined();
 		});
+
+		it('includes Vertex AI configuration fields', async () => {
+			const request = new Request<unknown, IncomingRequestCfProperties>('http://example.com/status');
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, env, ctx);
+			await waitOnExecutionContext(ctx);
+
+			const data = await response.json() as any;
+			expect(response.status).toBe(200);
+			// New fields should be present (may be false if not configured)
+			expect(data).toHaveProperty('vertexAiConfigured');
+			expect(data).toHaveProperty('vertexAiAuthConfigured');
+			expect(data).toHaveProperty('vertexAiTokenCached');
+		});
 	});
 
 	describe('request for /query', () => {
@@ -32,8 +46,10 @@ describe('AI Worker', () => {
 				headers: { 'Content-Type': 'application/json' }
 			});
 			const response = await SELF.fetch(request);
+			const data = await response.json() as any;
 			expect(response.status).toBe(400);
-			expect(await response.text()).toBe('Missing "prompt" field');
+			expect(data.error).toContain('Missing "prompt" field');
+			expect(data.code).toBe('invalid_request');
 		});
 
 		// To test success, we would need to mock env.AI and env.RAG_KV properly.
@@ -50,6 +66,8 @@ describe('AI Worker', () => {
 			expect(response.status).toBe(400);
 			const data = await response.json() as any;
 			expect(data.error).toContain('Invalid model');
+			expect(data.code).toBe('invalid_request');
+			expect(data.model).toBe('invalid');
 		});
 	});
 });
