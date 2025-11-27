@@ -22,7 +22,18 @@ This Terraform configuration creates:
 
 ## Configuration
 
-### 1. Set Variables
+### 1. Configure Terraform Cloud Backend
+
+**Important**: The Terraform Cloud backend configuration in `backend.tf` uses hardcoded values (cannot use variables). If you need different values:
+
+1. Edit `terraform/backend.tf` directly
+2. Update the `organization` and `workspace` name values
+
+Current defaults:
+- Organization: `disposable-org`
+- Workspace: `not-sure`
+
+### 2. Set Variables
 
 Create a `terraform.tfvars` file (or use environment variables):
 
@@ -31,8 +42,6 @@ project_id              = "your-gcp-project-id"
 vertex_ai_location      = "us-central1"
 vertex_ai_model         = "gemini-1.5-pro"
 service_account_id      = "not-sure-vertex-ai"
-terraform_cloud_organization = "your-org"
-terraform_cloud_workspace    = "not-sure"
 ```
 
 ### 2. Initialize Terraform
