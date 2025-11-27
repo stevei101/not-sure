@@ -19,6 +19,13 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   TF_CLOUD_ORGANIZATION: ${{ secrets.TF_CLOUD_ORGANIZATION }}
   TF_WORKSPACE: ${{ secrets.TF_WORKSPACE || 'not-sure' }}
+  # Terraform variables (Terraform Cloud will read TF_VAR_* environment variables)
+  TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+  # Optional variables with defaults - can override via Terraform Cloud workspace variables
+  # TF_VAR_vertex_ai_location: "us-central1"
+  # TF_VAR_vertex_ai_model: "gemini-1.5-pro"
+  # TF_VAR_service_account_id: "not-sure-vertex-ai"
+  # TF_VAR_environment: "prod"
 
 jobs:
   terraform:
