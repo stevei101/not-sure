@@ -4,7 +4,7 @@
 
 export interface QueryRequest {
   prompt: string;
-  model?: "cloudflare";
+  model?: "cloudflare" | "gemini";
 }
 
 export interface QueryResponse {
