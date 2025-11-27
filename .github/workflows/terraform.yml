@@ -103,17 +103,9 @@ jobs:
         run: tflint --format=default --recursive
         continue-on-error: true
 
-      - name: Terraform Plan
-        id: plan
-        if: github.event_name == 'pull_request'
-        working-directory: terraform
-        run: terraform plan -no-color -input=false -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
-
-      - name: Comment PR
+      - name: Comment PR (Validation Only)
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -121,15 +113,6 @@ jobs:
             #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
             #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
             #### TFLint Linting 🔍\`${{ steps.tflint.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`terraform
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
 
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`terraform\`, Workflow: \`${{ github.workflow }}\`*`;
 
@@ -153,25 +136,13 @@ jobs:
         working-directory: terraform
         run: terraform apply -auto-approve -input=false -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
 
-      - name: Output Terraform Outputs
+      - name: Terraform Apply Summary
         if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
         working-directory: terraform
         run: |
-          echo "## Terraform Apply Outputs" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Service Account (for Cloudflare Workers)" >> $GITHUB_STEP_SUMMARY
-          terraform output -raw service_account_email >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Workload Identity Federation (for GitHub Actions)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**WIF_PROVIDER:**" >> $GITHUB_STEP_SUMMARY
-          terraform output -raw wif_provider >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**WIF_SERVICE_ACCOUNT:**" >> $GITHUB_STEP_SUMMARY
-          terraform output -raw wif_service_account >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📋 Add these values to GitHub Secrets to enable automated Terraform apply:" >> $GITHUB_STEP_SUMMARY
-          echo "See terraform/README.md for next steps."
+          echo "Infrastructure has been applied successfully." >> $GITHUB_STEP_SUMMARY
 
       - name: Note About GCP Authentication
         if: steps.check_wif.outputs.wif_configured == 'false'
