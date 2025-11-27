@@ -56,7 +56,7 @@
 		// Vertex AI Configuration (via Cloudflare AI Gateway)
 		// "GCP_PROJECT_ID": "your-gcp-project-id" (same as GitHub secret GCP_PROJECT_ID)
 		// "VERTEX_AI_LOCATION": "us-central1"
-		// "VERTEX_AI_MODEL": "gemini-1.5-flash"
+		// "VERTEX_AI_MODEL": "gemini-3-pro-preview" // or "gemini-1.5-flash", "gemini-1.5-pro"
 		// Note: VERTEX_AI_SERVICE_ACCOUNT_JSON should be set as a secret via:
 		// wrangler secret put VERTEX_AI_SERVICE_ACCOUNT_JSON
 		// See VERTEX_AI_SETUP.md for complete setup instructions

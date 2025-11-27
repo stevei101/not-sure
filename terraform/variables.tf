@@ -17,9 +17,9 @@ variable "vertex_ai_location" {
 }
 
 variable "vertex_ai_model" {
-  description = "Vertex AI Gemini model name (e.g., gemini-1.5-pro, gemini-1.5-flash)"
+  description = "Vertex AI Gemini model name (e.g., gemini-3-pro-preview, gemini-1.5-pro, gemini-1.5-flash)"
   type        = string
-  default     = "gemini-1.5-pro"
+  default     = "gemini-3-pro-preview"
 }
 
 variable "service_account_id" {

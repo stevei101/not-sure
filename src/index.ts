@@ -30,7 +30,7 @@ export interface Env {
 	GCP_PROJECT_ID?: string; // GCP Project ID (used for Vertex AI)
 	VERTEX_AI_PROJECT_ID?: string; // Alias for GCP_PROJECT_ID (for backward compatibility)
 	VERTEX_AI_LOCATION?: string; // Vertex AI region (e.g., "us-central1")
-	VERTEX_AI_MODEL?: string; // Model name (e.g., "gemini-1.5-flash" or "gemini-2.5-flash")
+	VERTEX_AI_MODEL?: string; // Model name (e.g., "gemini-3-pro-preview", "gemini-1.5-flash", "gemini-1.5-pro")
 	// Authentication: Can use API key (same as Google AI Studio) OR service account JSON
 	GEMINI_API_KEY?: string; // API key for Vertex AI (same as Google AI Studio) - preferred
 	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON (alternative to API key)
@@ -115,7 +115,8 @@ async function callVertexAI(prompt: string, env: Env): Promise<string> {
 	// Use GCP_PROJECT_ID or VERTEX_AI_PROJECT_ID (they're the same)
 	const projectId = env.GCP_PROJECT_ID || env.VERTEX_AI_PROJECT_ID;
 	const location = env.VERTEX_AI_LOCATION || "us-central1";
-	const modelName = env.VERTEX_AI_MODEL || "gemini-1.5-flash";
+	// Default to gemini-3-pro-preview (latest preview model) or fallback to gemini-1.5-flash
+	const modelName = env.VERTEX_AI_MODEL || "gemini-3-pro-preview";
 	
 	// Support API key (same as Google AI Studio) or service account
 	const apiKey = env.GEMINI_API_KEY;
