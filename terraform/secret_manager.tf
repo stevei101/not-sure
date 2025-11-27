@@ -10,9 +10,9 @@ resource "google_secret_manager_secret" "service_account_key" {
   }
 
   labels = {
-    service    = "not-sure-worker"
-    api_type   = "vertex-ai"
-    managed_by = "terraform"
+    service     = "not-sure-worker"
+    api_type    = "vertex-ai"
+    managed_by  = "terraform"
     environment = var.environment
   }
 

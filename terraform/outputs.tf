@@ -40,7 +40,7 @@ output "secret_name" {
 # Instructions for adding the service account key to the secret
 output "setup_instructions" {
   description = "Instructions for completing the setup"
-  value = <<-EOT
+  value       = <<-EOT
     To complete the Vertex AI setup:
     
     1. Generate a service account key:
@@ -64,6 +64,6 @@ output "setup_instructions" {
     
     Or use the provided script: scripts/generate-and-store-key.sh
   EOT
-  sensitive = false
+  sensitive   = false
 }
 
