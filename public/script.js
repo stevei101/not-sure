@@ -41,7 +41,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                throw new Error(`Error: ${response.statusText}`);
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch {
+                    // If response isn't JSON, use status text
+                }
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();
@@ -57,7 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             removeMessage(loadingId);
-            addMessage(`Sorry, something went wrong: ${error.message}`, 'ai');
+            const errorMessage = error.message || error.toString() || 'Unknown error occurred';
+            console.error('Error details:', error);
+            addMessage(`Sorry, something went wrong: ${errorMessage}`, 'ai');
         } finally {
             sendBtn.disabled = false;
             promptInput.focus();

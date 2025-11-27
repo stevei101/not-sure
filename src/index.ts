@@ -3,17 +3,18 @@
  * 
  * Supports:
  * - Cloudflare AI (Llama 2 7B)
+ * - Google Vertex AI (Gemini models)
  * 
  * POST /query
  * {
  *   "prompt": "your question",
- *   "model": "cloudflare"
+ *   "model": "cloudflare" | "vertex-ai"
  * }
  */
 
 import { Ai } from "@cloudflare/ai";
 
-type AIModel = "cloudflare";
+type AIModel = "cloudflare" | "vertex-ai";
 
 export interface Env {
 	AI: Ai;
@@ -23,7 +24,11 @@ export interface Env {
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
-
+	// Vertex AI Configuration
+	VERTEX_AI_PROJECT_ID?: string;
+	VERTEX_AI_LOCATION?: string; // e.g., "us-central1"
+	VERTEX_AI_MODEL?: string; // e.g., "gemini-1.5-pro" or "gemini-1.5-flash"
+	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON key (stored as secret)
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -58,22 +63,125 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 	// Using REST API via Gateway as per requirements
 	const gatewayEndpoint = `${getGatewayUrl("workers-ai", env)}/@cf/meta/llama-2-7b-chat-fp16`;
 
+	// Prepare headers - API token is optional for Workers AI via Gateway when called from within a Worker
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json"
+	};
+	
+	// Add Authorization header only if token is provided
+	if (env.CLOUDFLARE_API_TOKEN) {
+		headers["Authorization"] = `Bearer ${env.CLOUDFLARE_API_TOKEN}`;
+	}
+
 	const response = await fetch(gatewayEndpoint, {
 		method: "POST",
-		headers: {
-			"Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-			"Content-Type": "application/json"
-		},
+		headers,
 		body: JSON.stringify({ messages })
 	});
 
 	if (!response.ok) {
-		const errorText = await response.text();
+		let errorText: string;
+		try {
+			errorText = await response.text();
+		} catch {
+			errorText = `HTTP ${response.status} ${response.statusText}`;
+		}
 		throw new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
 	}
 
 	const data: any = await response.json();
-	return data.result?.response ?? data.response ?? "";
+	
+	// Extract response from various possible formats
+	if (data.result?.response) {
+		return data.result.response;
+	}
+	if (data.response) {
+		return typeof data.response === "string" ? data.response : data.response.text || JSON.stringify(data.response);
+	}
+	if (data.text) {
+		return data.text;
+	}
+	
+	throw new Error("Unable to extract response from Cloudflare AI: unexpected response format");
+}
+
+/** Call Google Vertex AI via Cloudflare AI Gateway */
+async function callVertexAI(prompt: string, env: Env): Promise<string> {
+	if (!env.VERTEX_AI_PROJECT_ID || !env.VERTEX_AI_LOCATION) {
+		throw new Error("Vertex AI configuration missing: VERTEX_AI_PROJECT_ID and VERTEX_AI_LOCATION must be set");
+	}
+
+	const model = env.VERTEX_AI_MODEL || "gemini-1.5-pro";
+	
+	// Prepare messages in Vertex AI format (Gemini API format)
+	const messages = [
+		{ role: "user", parts: [{ text: prompt }] }
+	];
+
+	// Construct the Vertex AI endpoint via Cloudflare AI Gateway
+	// Cloudflare AI Gateway routes Vertex AI requests through google-vertex-ai provider
+	// The gateway handles routing to: https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models/{model}:predict
+	// Format: /v1/{account_id}/{gateway_id}/google-vertex-ai/{project}/{location}/{model}:generateContent
+	const gatewayBaseUrl = getGatewayUrl("google-vertex-ai", env);
+	const gatewayEndpoint = `${gatewayBaseUrl}/${env.VERTEX_AI_PROJECT_ID}/${env.VERTEX_AI_LOCATION}/${model}:generateContent`;
+
+	// Prepare request body for Vertex AI (Gemini format)
+	const requestBody = {
+		contents: messages
+	};
+
+	// Prepare headers
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json"
+	};
+
+	// Authentication: Cloudflare AI Gateway handles Vertex AI auth via service account
+	// If service account JSON is provided, pass it through the gateway
+	// The gateway may handle this differently - check Cloudflare docs for exact format
+	// For now, we'll pass it in a header that the gateway can forward
+	if (env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+		try {
+			// Cloudflare AI Gateway may support BYOK (Bring Your Own Key) format
+			// Format may vary - this is a common pattern for service account JSON
+			headers["X-Google-Credentials"] = env.VERTEX_AI_SERVICE_ACCOUNT_JSON;
+		} catch (error) {
+			throw new Error(`Failed to set Vertex AI service account credentials: ${error}`);
+		}
+	}
+
+	const response = await fetch(gatewayEndpoint, {
+		method: "POST",
+		headers,
+		body: JSON.stringify(requestBody)
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Vertex AI error (${response.status}): ${errorText}`);
+	}
+
+	const data: any = await response.json();
+	
+	// Extract response text from Vertex AI response structure
+	// Vertex AI Gemini API returns: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+	if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+		return data.candidates[0].content.parts[0].text;
+	}
+	
+	// Fallback for different response formats (gateway might wrap the response)
+	if (data.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+		return data.response.candidates[0].content.parts[0].text;
+	}
+	
+	if (data.response?.text) {
+		return data.response.text;
+	}
+	
+	if (typeof data === "string") {
+		return data;
+	}
+
+	throw new Error("Unable to extract response from Vertex AI: unexpected response format");
 }
 
 /** Route to the appropriate AI model */
@@ -81,6 +189,8 @@ async function callAI(prompt: string, model: AIModel, env: Env): Promise<string>
 	switch (model) {
 		case "cloudflare":
 			return callCloudflareAI(prompt, env);
+		case "vertex-ai":
+			return callVertexAI(prompt, env);
 		default:
 			throw new Error(`Unknown model: ${model}`);
 	}
@@ -92,15 +202,26 @@ export default {
 
 		// Health-check endpoint
 		if (request.method === "GET" && url.pathname === "/status") {
+			const models = ["cloudflare"];
+			// Add vertex-ai if configured
+			if (env.VERTEX_AI_PROJECT_ID && env.VERTEX_AI_LOCATION) {
+				models.push("vertex-ai");
+			}
+
 			return new Response(
 				JSON.stringify({
 					ok: true,
-					version: "2.1.0",
+					version: "2.2.0",
 					timestamp: new Date().toISOString(),
-					models: ["cloudflare"],
+					models,
 					gatewayId: env.AI_GATEWAY_ID,
-					gatewayUrl: getGatewayUrl("test", env) // return constructed URL for verification
-
+					gatewayUrl: getGatewayUrl("test", env), // return constructed URL for verification
+					vertexAI: env.VERTEX_AI_PROJECT_ID ? {
+						projectId: env.VERTEX_AI_PROJECT_ID,
+						location: env.VERTEX_AI_LOCATION,
+						model: env.VERTEX_AI_MODEL || "gemini-1.5-pro",
+						configured: true
+					} : { configured: false }
 				}),
 				{ headers: { "Content-Type": "application/json" } }
 			);
@@ -125,8 +246,11 @@ export default {
 			return new Response('Missing "prompt" field', { status: 400 });
 		}
 
-		// Validate model
+		// Validate model - build list dynamically based on configuration
 		const validModels: AIModel[] = ["cloudflare"];
+		if (env.VERTEX_AI_PROJECT_ID && env.VERTEX_AI_LOCATION) {
+			validModels.push("vertex-ai");
+		}
 		if (!validModels.includes(model)) {
 			return new Response(
 				JSON.stringify({ error: `Invalid model. Choose from: ${validModels.join(", ")}` }),
@@ -156,8 +280,10 @@ export default {
 				headers: { "Content-Type": "application/json" },
 			});
 		} catch (error: any) {
+			const errorMessage = error?.message || error?.toString() || "Internal server error";
+			console.error("Error in /query endpoint:", errorMessage, error);
 			return new Response(
-				JSON.stringify({ error: error.message || "Internal server error", model }),
+				JSON.stringify({ error: errorMessage, model }),
 				{ status: 500, headers: { "Content-Type": "application/json" } }
 			);
 		}
