@@ -205,9 +205,14 @@ curl -X POST https://your-worker.workers.dev/query \
 
 The worker supports the following Vertex AI Gemini models:
 
-- `gemini-1.5-pro` (default) - Best for complex tasks
+- `gemini-3-pro-preview` (default) - Latest preview model
+- `gemini-flash-latest` - Latest flash model (auto-updates to newest version)
+- `gemini-flash-lite-latest` - Latest lite flash model (auto-updates to newest version)
+- `gemini-1.5-pro` - Best for complex tasks
 - `gemini-1.5-flash` - Faster, more cost-effective for simpler tasks
 - `gemini-1.0-pro` - Stable production model
+
+**Note:** Models with `-latest` suffix automatically resolve to the newest version of that model family. Use the model name without the `models/` prefix (e.g., `gemini-flash-latest`, not `models/gemini-flash-latest`).
 
 Set your preferred model using the `VERTEX_AI_MODEL` environment variable.
 
