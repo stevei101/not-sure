@@ -13,11 +13,11 @@ resource "google_iam_workload_identity_pool" "github_actions" {
 }
 
 # Workload Identity Provider (OIDC for GitHub Actions)
+# Note: Workload Identity Providers are global resources and don't require a location argument
 resource "google_iam_workload_identity_pool_provider" "github" {
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.github_actions.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-provider"
-  location                           = "global"
   display_name                       = "GitHub Provider"
   description                        = "OIDC provider for GitHub Actions"
 
