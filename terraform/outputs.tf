@@ -37,32 +37,44 @@ output "secret_name" {
   sensitive   = false
 }
 
-# Instructions for adding the service account key to the secret
+output "service_account_key_secret_name" {
+  description = "Full Secret Manager resource name for service account JSON"
+  value       = google_secret_manager_secret.service_account_key.name
+  sensitive   = false
+}
+
+output "service_account_key_secret_version" {
+  description = "Secret Manager secret version number"
+  value       = google_secret_manager_secret_version.service_account_key.version
+  sensitive   = false
+}
+
+# Instructions for retrieving and using the service account key
 output "setup_instructions" {
   description = "Instructions for completing the setup"
   value       = <<-EOT
-    To complete the Vertex AI setup:
+    ✅ Service account key has been automatically generated and stored in Secret Manager!
     
-    1. Generate a service account key:
-       gcloud iam service-accounts keys create key.json \
-         --iam-account=${google_service_account.vertex_ai.email} \
+    To retrieve the service account JSON key:
+    
+    1. Get the key from Secret Manager:
+       gcloud secrets versions access latest \
+         --secret="${google_secret_manager_secret.service_account_key.secret_id}" \
          --project=${var.project_id}
     
-    2. Add the key to Secret Manager:
-       cat key.json | gcloud secrets versions add ${google_secret_manager_secret.service_account_key.secret_id} \
-         --data-file=- \
-         --project=${var.project_id}
-    
-    3. Clean up the key file:
-       rm key.json
-    
-    4. Set Cloudflare Worker secrets:
-       wrangler secret put VERTEX_AI_PROJECT_ID
-       wrangler secret put VERTEX_AI_LOCATION
-       wrangler secret put VERTEX_AI_MODEL
+    2. Set Cloudflare Worker secret:
+       gcloud secrets versions access latest \
+         --secret="${google_secret_manager_secret.service_account_key.secret_id}" \
+         --project=${var.project_id} | \
        wrangler secret put VERTEX_AI_SERVICE_ACCOUNT_JSON
     
-    Or use the provided script: scripts/generate-and-store-key.sh
+    Or set other required secrets:
+       wrangler secret put GCP_PROJECT_ID        # Use: ${var.project_id}
+       wrangler secret put VERTEX_AI_LOCATION    # Use: ${var.vertex_ai_location}
+       wrangler secret put VERTEX_AI_MODEL       # Use: ${var.vertex_ai_model}
+    
+    The service account JSON is stored at:
+    Secret: projects/${var.project_id}/secrets/${google_secret_manager_secret.service_account_key.secret_id}
   EOT
   sensitive   = false
 }

@@ -19,16 +19,31 @@ resource "google_secret_manager_secret" "service_account_key" {
   depends_on = [google_project_service.apis]
 }
 
+# Generate service account key
+resource "google_service_account_key" "vertex_ai" {
+  service_account_id = google_service_account.vertex_ai.name
+
+  depends_on = [google_service_account.vertex_ai]
+}
+
+# Store the service account key JSON in Secret Manager
+# The private_key from google_service_account_key is already base64-encoded JSON, so we decode it
+resource "google_secret_manager_secret_version" "service_account_key" {
+  secret      = google_secret_manager_secret.service_account_key.id
+  secret_data = base64decode(google_service_account_key.vertex_ai.private_key)
+
+  depends_on = [
+    google_secret_manager_secret.service_account_key,
+    google_service_account_key.vertex_ai
+  ]
+}
+
 # Grant the service account access to read its own key (for validation/testing)
 resource "google_secret_manager_secret_iam_member" "service_account_key_accessor" {
   secret_id = google_secret_manager_secret.service_account_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.vertex_ai.email}"
-}
 
-# Note: The actual service account JSON key value must be added after the service account key is created.
-# Use the script in scripts/generate-service-account-key.sh or manually via:
-# gcloud iam service-accounts keys create key.json --iam-account=SERVICE_ACCOUNT_EMAIL
-# echo "$(cat key.json)" | gcloud secrets versions add VERTEX_AI_SERVICE_ACCOUNT_JSON --data-file=-
-# rm key.json
+  depends_on = [google_secret_manager_secret.service_account_key]
+}
 
