@@ -92,3 +92,10 @@ project_id = "your-project-id"
 - Set variables in Terraform Cloud workspace UI (recommended)
 - Or ensure `-var` flags are used in the workflow commands
 
+**Error: "No credentials loaded" or "could not find default credentials":**
+
+- This is a **credentials issue**, not a variables issue
+- Terraform Cloud needs GCP credentials configured in the workspace
+- See `TERRAFORM_CLOUD_CREDENTIALS_SETUP.md` for complete setup instructions
+- You need to set `GOOGLE_CREDENTIALS` environment variable in Terraform Cloud workspace
+
