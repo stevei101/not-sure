@@ -26,7 +26,9 @@ export interface Env {
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
 	// Vertex AI Configuration (via Cloudflare AI Gateway)
-	VERTEX_AI_PROJECT_ID?: string; // GCP Project ID for Vertex AI
+	// Note: GCP_PROJECT_ID can be used instead of VERTEX_AI_PROJECT_ID (same value)
+	GCP_PROJECT_ID?: string; // GCP Project ID (used for Vertex AI)
+	VERTEX_AI_PROJECT_ID?: string; // Alias for GCP_PROJECT_ID (for backward compatibility)
 	VERTEX_AI_LOCATION?: string; // Vertex AI region (e.g., "us-central1")
 	VERTEX_AI_MODEL?: string; // Model name (e.g., "gemini-1.5-flash" or "gemini-2.5-flash")
 	VERTEX_AI_SERVICE_ACCOUNT_JSON?: string; // Service account JSON key for authentication
@@ -108,11 +110,12 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 
 /** Call Google Vertex AI Gemini via Cloudflare AI Gateway */
 async function callVertexAI(prompt: string, env: Env): Promise<string> {
-	if (!env.VERTEX_AI_PROJECT_ID || !env.VERTEX_AI_LOCATION || !env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
-		throw new Error("Vertex AI configuration missing: VERTEX_AI_PROJECT_ID, VERTEX_AI_LOCATION, and VERTEX_AI_SERVICE_ACCOUNT_JSON must be set");
+	// Use GCP_PROJECT_ID or VERTEX_AI_PROJECT_ID (they're the same)
+	const projectId = env.GCP_PROJECT_ID || env.VERTEX_AI_PROJECT_ID;
+	
+	if (!projectId || !env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+		throw new Error("Vertex AI configuration missing: GCP_PROJECT_ID (or VERTEX_AI_PROJECT_ID) and VERTEX_AI_SERVICE_ACCOUNT_JSON must be set");
 	}
-
-	const projectId = env.VERTEX_AI_PROJECT_ID;
 	const location = env.VERTEX_AI_LOCATION || "us-central1";
 	const modelName = env.VERTEX_AI_MODEL || "gemini-1.5-flash";
 	
@@ -218,7 +221,8 @@ export default {
 		if (request.method === "GET" && url.pathname === "/status") {
 			const models = ["cloudflare"];
 			// Add vertex-ai if configured
-			if (env.VERTEX_AI_PROJECT_ID && env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+			const projectId = env.GCP_PROJECT_ID || env.VERTEX_AI_PROJECT_ID;
+			if (projectId && env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
 				models.push("vertex-ai");
 			}
 

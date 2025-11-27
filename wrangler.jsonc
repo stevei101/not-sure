@@ -54,7 +54,7 @@
 		// Set to "true" if using a custom domain that maps directly to the gateway provider path
 		"AI_GATEWAY_SKIP_PATH_CONSTRUCTION": "false",
 		// Vertex AI Configuration (via Cloudflare AI Gateway)
-		// "VERTEX_AI_PROJECT_ID": "your-gcp-project-id"
+		// "GCP_PROJECT_ID": "your-gcp-project-id" (same as GitHub secret GCP_PROJECT_ID)
 		// "VERTEX_AI_LOCATION": "us-central1"
 		// "VERTEX_AI_MODEL": "gemini-1.5-flash"
 		// Note: VERTEX_AI_SERVICE_ACCOUNT_JSON should be set as a secret via:

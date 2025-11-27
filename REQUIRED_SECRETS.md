@@ -6,11 +6,12 @@ We've switched from **Google AI Studio** (API key) to **Vertex AI** (service acc
 
 ## Required Secrets
 
-### 1. **VERTEX_AI_PROJECT_ID** (Environment Variable or Secret)
+### 1. **GCP_PROJECT_ID** (Environment Variable or Secret)
    - **Type**: String
    - **Example**: `my-gcp-project-12345`
-   - **Source**: Your Google Cloud Project ID
-   - **Set via**: `wrangler secret put VERTEX_AI_PROJECT_ID` OR add to `wrangler.jsonc` vars (not recommended for production)
+   - **Source**: Your Google Cloud Project ID (same as GitHub secret `GCP_PROJECT_ID`)
+   - **Note**: You can use `VERTEX_AI_PROJECT_ID` instead if preferred (they're the same value)
+   - **Set via**: `wrangler secret put GCP_PROJECT_ID` OR add to `wrangler.jsonc` vars (not recommended for production)
 
 ### 2. **VERTEX_AI_LOCATION** (Environment Variable or Secret)
    - **Type**: String
@@ -56,9 +57,10 @@ These are **no longer needed** after switching to Vertex AI:
 ### Option 1: Using Wrangler CLI
 
 ```bash
-# Set project ID
-wrangler secret put VERTEX_AI_PROJECT_ID
+# Set project ID (same value as GitHub secret GCP_PROJECT_ID)
+wrangler secret put GCP_PROJECT_ID
 # Enter your GCP project ID when prompted
+# Note: VERTEX_AI_PROJECT_ID is also accepted as an alias
 
 # Set location (optional - defaults to us-central1)
 wrangler secret put VERTEX_AI_LOCATION
@@ -80,7 +82,7 @@ cat path/to/service-account-key.json | wrangler secret put VERTEX_AI_SERVICE_ACC
 3. Add the following:
 
    **Environment Variables** (can be plain text):
-   - `VERTEX_AI_PROJECT_ID`: Your GCP project ID
+   - `GCP_PROJECT_ID`: Your GCP project ID (same as GitHub secret)
    - `VERTEX_AI_LOCATION`: Region (e.g., `us-central1`)
    - `VERTEX_AI_MODEL`: Model name (e.g., `gemini-1.5-flash`)
 
@@ -133,7 +135,7 @@ curl https://lornu.ai/status
 
 | Secret/Variable | Required | Type | Default |
 |----------------|----------|------|---------|
-| `VERTEX_AI_PROJECT_ID` | ✅ Yes | Env Var or Secret | None |
+| `GCP_PROJECT_ID` | ✅ Yes | Env Var or Secret | None (alias: `VERTEX_AI_PROJECT_ID`) |
 | `VERTEX_AI_LOCATION` | ⚠️ Recommended | Env Var or Secret | `us-central1` |
 | `VERTEX_AI_MODEL` | ⚠️ Optional | Env Var or Secret | `gemini-1.5-flash` |
 | `VERTEX_AI_SERVICE_ACCOUNT_JSON` | ✅ Yes | Secret | None |
