@@ -234,8 +234,10 @@ export default {
 					models,
 					gatewayId: env.AI_GATEWAY_ID,
 					gatewayUrl: getGatewayUrl("test", env), // return constructed URL for verification
-					vertexAI: env.GOOGLE_AI_STUDIO_TOKEN ? {
-						model: env.GEMINI_MODEL || "gemini-1.5-flash",
+					vertexAI: projectId && env.VERTEX_AI_SERVICE_ACCOUNT_JSON ? {
+						projectId: projectId,
+						location: env.VERTEX_AI_LOCATION || "us-central1",
+						model: env.VERTEX_AI_MODEL || "gemini-1.5-flash",
 						configured: true
 					} : { configured: false }
 				}),
