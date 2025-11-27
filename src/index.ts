@@ -61,25 +61,38 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 		{ role: "user", content: prompt },
 	];
 
-	// Using REST API via Gateway as per requirements
-	const gatewayEndpoint = `${getGatewayUrl("workers-ai", env)}/@cf/meta/llama-2-7b-chat-fp16`;
+	// Use Workers AI binding directly (no API token required within Worker context)
+	// If AI Gateway is needed, configure CLOUDFLARE_API_TOKEN secret
+	const useGateway = !!env.CLOUDFLARE_API_TOKEN;
 
-	const response = await fetch(gatewayEndpoint, {
-		method: "POST",
-		headers: {
-			"Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-			"Content-Type": "application/json"
-		},
-		body: JSON.stringify({ messages })
-	});
+	if (useGateway) {
+		// Using REST API via Gateway (requires API token)
+		const gatewayEndpoint = `${getGatewayUrl("workers-ai", env)}/@cf/meta/llama-2-7b-chat-fp16`;
 
-	if (!response.ok) {
-		const errorText = await response.text();
-		throw new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
+		const response = await fetch(gatewayEndpoint, {
+			method: "POST",
+			headers: {
+				"Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+				"Content-Type": "application/json"
+			},
+			body: JSON.stringify({ messages })
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
+		}
+
+		const data: any = await response.json();
+		return data.result?.response ?? data.response ?? "";
+	} else {
+		// Use Workers AI binding directly (simpler, no Gateway)
+		const response: any = await env.AI.run("@cf/meta/llama-2-7b-chat-fp16", {
+			messages
+		});
+
+		return response.response ?? "";
 	}
-
-	const data: any = await response.json();
-	return data.result?.response ?? data.response ?? "";
 }
 
 /** Service account JSON structure */
