@@ -114,19 +114,15 @@ async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
 async function callVertexAI(prompt: string, env: Env): Promise<string> {
 	// Use GCP_PROJECT_ID or VERTEX_AI_PROJECT_ID (they're the same)
 	const projectId = env.GCP_PROJECT_ID || env.VERTEX_AI_PROJECT_ID;
-	
-	if (!projectId || !env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
-		throw new Error("Vertex AI configuration missing: GCP_PROJECT_ID (or VERTEX_AI_PROJECT_ID) and VERTEX_AI_SERVICE_ACCOUNT_JSON must be set");
-	}
 	const location = env.VERTEX_AI_LOCATION || "us-central1";
 	const modelName = env.VERTEX_AI_MODEL || "gemini-1.5-flash";
 	
-	// Parse service account JSON for authentication
-	let serviceAccount: any;
-	try {
-		serviceAccount = JSON.parse(env.VERTEX_AI_SERVICE_ACCOUNT_JSON);
-	} catch (error) {
-		throw new Error("Invalid VERTEX_AI_SERVICE_ACCOUNT_JSON: Must be valid JSON");
+	// Support API key (same as Google AI Studio) or service account
+	const apiKey = env.GEMINI_API_KEY;
+	const hasServiceAccount = !!env.VERTEX_AI_SERVICE_ACCOUNT_JSON;
+	
+	if (!projectId || (!apiKey && !hasServiceAccount)) {
+		throw new Error("Vertex AI configuration missing: GCP_PROJECT_ID (or VERTEX_AI_PROJECT_ID) and either GEMINI_API_KEY or VERTEX_AI_SERVICE_ACCOUNT_JSON must be set");
 	}
 
 	// Vertex AI endpoint via Cloudflare AI Gateway
@@ -155,17 +151,19 @@ async function callVertexAI(prompt: string, env: Env): Promise<string> {
 		}
 	};
 
-	// Generate OAuth2 token from service account (simplified - in production, use proper token generation)
-	// For now, we'll need to use the service account to authenticate
-	// Cloudflare AI Gateway should handle this, but we may need to pass credentials
+	// Prepare headers - use API key if available (same as Google AI Studio), otherwise Gateway handles service account auth
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json"
+	};
+	
+	if (apiKey) {
+		headers["x-goog-api-key"] = apiKey;
+	}
+	// If using service account, Gateway should handle authentication
 	
 	const response = await fetch(gatewayEndpoint, {
 		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			// Vertex AI uses OAuth2 with service account - Gateway should handle this
-			// May need to pass Authorization header with Bearer token from service account
-		},
+		headers,
 		body: JSON.stringify(requestBody)
 	});
 
