@@ -11,6 +11,7 @@
 		"global_fetch_strictly_public"
 	],
 	"assets": {
+		"binding": "ASSETS",
 		// The path to the directory containing the built React app
 		"directory": "./dist"
 	},

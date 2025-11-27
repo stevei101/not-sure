@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { MagnifyingGlass, Sparkle, CheckCircle } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { queryAI, type QueryResponse } from '@/lib/api';
+import { v4 as uuidv4 } from 'uuid';
 
 interface SearchResult {
   id: string;
@@ -38,7 +39,7 @@ export function Search() {
       });
 
       const newResult: SearchResult = {
-        id: Date.now().toString(),
+        id: uuidv4(),
         prompt: currentQuery,
         response,
         timestamp: new Date(),

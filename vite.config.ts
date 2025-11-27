@@ -18,5 +18,11 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
+  server: {
+    proxy: {
+      '/query': 'http://127.0.0.1:8787',
+      '/status': 'http://127.0.0.1:8787',
+    },
+  },
 });
 

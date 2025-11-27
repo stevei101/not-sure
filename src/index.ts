@@ -23,7 +23,7 @@ export interface Env {
 	AI_GATEWAY_ID: string;
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
-
+	ASSETS: Fetcher;
 }
 
 /** Helper: SHA‑256 hash of a string, hex‑encoded */
@@ -184,8 +184,8 @@ export default {
 			}
 		}
 
-		// For static assets (React app), let Wrangler handle it
+		// For static assets (React app), delegate to ASSETS fetcher
 		// This will serve files from the dist directory
-		return new Response("Not Found", { status: 404, headers: corsHeaders });
+		return env.ASSETS.fetch(request);
 	},
 } satisfies ExportedHandler<Env>;
