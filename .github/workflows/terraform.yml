@@ -1,0 +1,163 @@
+name: Terraform Infrastructure
+
+on:
+  push:
+    branches: ['**']  # Run validation on all branches
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  TF_VERSION: '1.5.0'
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  TF_CLOUD_ORGANIZATION: ${{ secrets.TF_CLOUD_ORGANIZATION }}
+  TF_WORKSPACE: ${{ secrets.TF_WORKSPACE || 'not-sure' }}
+  # Terraform variables (Terraform Cloud will read TF_VAR_* environment variables)
+  TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+  # Optional variables with defaults - can override via Terraform Cloud workspace variables
+  # TF_VAR_vertex_ai_location: "us-central1"
+  # TF_VAR_vertex_ai_model: "gemini-1.5-pro"
+  # TF_VAR_service_account_id: "not-sure-vertex-ai"
+  # TF_VAR_environment: "prod"
+
+jobs:
+  terraform:
+    name: Terraform Verification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Required for PR comments
+      id-token: write # Required for Workload Identity Federation
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Check if WIF secrets exist (set output for use in conditions)
+      - name: Check WIF configuration
+        id: check_wif
+        env:
+          WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+          WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$WIF_PROVIDER" ] && [ -n "$WIF_SERVICE_ACCOUNT" ]; then
+            echo "wif_configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "wif_configured=false" >> $GITHUB_OUTPUT
+          fi
+
+      # GCP Authentication (optional - only if WIF is configured)
+      # If WIF secrets are not set, Terraform can still validate/format/lint
+      # For actual apply, GCP authentication is required (can be done locally or via WIF)
+      - name: Authenticate to Google Cloud
+        if: steps.check_wif.outputs.wif_configured == 'true'
+        uses: google-github-actions/auth@v2
+        id: auth
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Set up Cloud SDK
+        if: steps.check_wif.outputs.wif_configured == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive terraform/
+        continue-on-error: true
+
+      - name: Terraform Init
+        id: init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        working-directory: terraform
+        run: terraform validate -no-color
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run TFLint
+        id: tflint
+        working-directory: terraform
+        run: tflint --format=default --recursive
+        continue-on-error: true
+
+      - name: Comment PR (Validation Only)
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### TFLint Linting 🔍\`${{ steps.tflint.outcome }}\`
+
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`terraform\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Check Validation Results
+        if: steps.validate.outcome == 'failure' || steps.tflint.outcome == 'failure'
+        run: |
+          echo "❌ Validation failed!"
+          echo "Terraform Validate: ${{ steps.validate.outcome }}"
+          echo "TFLint: ${{ steps.tflint.outcome }}"
+          exit 1
+
+      - name: Terraform Apply
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
+        working-directory: terraform
+        run: terraform apply -auto-approve -input=false -var="project_id=${{ secrets.GCP_PROJECT_ID }}"
+
+      - name: Terraform Apply Summary
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && github.event_name == 'push' && steps.check_wif.outputs.wif_configured == 'true'
+        working-directory: terraform
+        run: |
+          echo "## ✅ Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Infrastructure has been applied successfully." >> $GITHUB_STEP_SUMMARY
+
+      - name: Note About GCP Authentication
+        if: steps.check_wif.outputs.wif_configured == 'false'
+        run: |
+          echo "⚠️ WIF not configured - Terraform validation passed, but apply skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To enable automated apply:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Set up WIF (see WIF_SETUP_GUIDE.md) OR" >> $GITHUB_STEP_SUMMARY
+          echo "2. Run Terraform manually: \`cd terraform && terraform apply\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "For now, you can run Terraform locally with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "gcloud auth application-default login" >> $GITHUB_STEP_SUMMARY
+          echo "cd terraform" >> $GITHUB_STEP_SUMMARY
+          echo "terraform init" >> $GITHUB_STEP_SUMMARY
+          echo "terraform apply" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
