@@ -5,12 +5,14 @@
 export interface QueryRequest {
   prompt: string;
   model?: "cloudflare" | "gemini";
+  modelName?: string; // Optional: specific model identifier (e.g., "google-ai-studio/gemini-flash-latest", "workers-ai/@cf/meta/llama-2-7b-chat-fp16")
 }
 
 export interface QueryResponse {
   answer: string;
   cached: boolean;
   model: string;
+  modelName?: string; // Specific model identifier used (if provided)
 }
 
 export interface StatusResponse {
@@ -18,8 +20,15 @@ export interface StatusResponse {
   version: string;
   timestamp: string;
   models: string[];
-  gatewayId: string;
-  gatewayUrl: string;
+  // Security: Sensitive fields removed (gatewayId, gatewayUrl, vertexAiConfigured, etc.)
+}
+
+/** Structured error response from API */
+export interface ErrorResponse {
+  error: string;
+  code: "auth_error" | "config_missing" | "provider_error" | "invalid_request" | "internal_error";
+  model?: string;
+  details?: unknown;
 }
 
 /**
@@ -35,15 +44,23 @@ function getApiBaseUrl(): string {
 /**
  * Query the RAG-enabled AI endpoint
  */
-export async function queryAI(request: QueryRequest): Promise<QueryResponse> {
+export async function queryAI(request: QueryRequest, apiKey?: string): Promise<QueryResponse> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  // Add API key if provided (for authenticated requests)
+  if (apiKey) {
+    headers["X-API-Key"] = apiKey;
+  }
+
   const response = await fetch(`${getApiBaseUrl()}/query`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       prompt: request.prompt,
       model: request.model || "cloudflare",
+      ...(request.modelName && { modelName: request.modelName }),
     }),
   });
 
