@@ -678,7 +678,17 @@ export default {
 
 			// Security: Validate model name format (if provided)
 			if (modelName && typeof modelName === "string") {
-				// Allow alphanumeric, hyphens, slashes, underscores, dots, and @ symbol
+				// Forward slashes (/) are REQUIRED for legitimate model names:
+				// - Cloudflare AI Gateway: "google-ai-studio/gemini-flash-latest", "workers-ai/@cf/meta/llama-2-7b-chat-fp16"
+				// - These are valid model identifiers used by the gateway API
+				//
+				// Security note: modelName is used in:
+				// 1. JSON request body (Cloudflare AI) - safe, no path traversal risk
+				// 2. URL path segment (Vertex AI) - validated by regex and length limit, no file system access
+				// 3. Cache keys (hashed) - safe, no injection risk
+				//
+				// The regex pattern allows: alphanumeric, hyphens, slashes, underscores, dots, and @ symbol
+				// Length limit (200 chars) prevents excessive input
 				if (!/^[a-z0-9\-/@_.]+$/i.test(modelName) || modelName.length > 200) {
 					const errorResponse: ErrorResponse = {
 						error: "Invalid model name format. Use alphanumeric characters, hyphens, slashes, underscores, dots, and @ only. Maximum length: 200 characters.",
