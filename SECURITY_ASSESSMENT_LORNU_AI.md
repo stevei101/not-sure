@@ -157,7 +157,7 @@ async function checkRateLimit(ip: string, env: Env): Promise<boolean> {
   version: "2.2.1",
   timestamp: "...",
   models: ["cloudflare", "gemini"],
-  gatewayId: "AQ.Ab8RN6JKBAPQhVWbuiBKBT1j9r3lE0Gqj4rfeat0SIo9aQzFFw", // ⚠️
+  gatewayId: "{GATEWAY_ID}", // ⚠️ (redacted)
   gatewayUrl: "https://gateway.ai.cloudflare.com/v1/...", // ⚠️
   vertexAiConfigured: true,
   vertexAiAuthConfigured: true,
@@ -209,7 +209,7 @@ async function checkRateLimit(ip: string, env: Env): Promise<boolean> {
 // Error messages include account IDs and URLs
 const error = new Error(
   `AI Gateway configuration required (error 2001): ${gatewayError.message}. ` +
-  `See: https://dash.cloudflare.com/${env.ACCOUNT_ID}/ai/ai-gateway` // ⚠️
+  `See: https://dash.cloudflare.com/{ACCOUNT_ID}/ai/ai-gateway` // ⚠️ (redacted)
 );
 ```
 
