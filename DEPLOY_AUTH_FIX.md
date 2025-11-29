@@ -72,7 +72,7 @@ After deploying, verify the fix:
      -H "Origin: https://evil.com" \
      -d '{"prompt": "test", "model": "cloudflare"}'
    # Should return: 401 Unauthorized
-   
+
    curl -X POST https://lornu.ai/query \
      -H "Content-Type: application/json" \
      -H "X-API-Key: YOUR_API_KEY" \
@@ -82,9 +82,9 @@ After deploying, verify the fix:
 
 ## Expected Behavior
 
-✅ **Frontend requests from lornu.ai**: Work without API key  
-✅ **External API calls**: Require API key (secure)  
-✅ **Search functionality**: Restored and working  
+✅ **Frontend requests from lornu.ai**: Work without API key
+✅ **External API calls**: Require API key (secure)
+✅ **Search functionality**: Restored and working
 
 ## Rollback Plan
 
@@ -103,7 +103,7 @@ wrangler deploy
 
 ---
 
-**Status:** ✅ Ready to deploy  
-**Risk Level:** Low (fix is targeted and tested)  
+**Status:** ✅ Ready to deploy
+**Risk Level:** Low (fix is targeted and tested)
 **Recommended:** Deploy immediately to restore search functionality
 

@@ -471,7 +471,7 @@ function getClientIP(request: Request): string {
 }
 
 /** Helper: Build CORS headers based on request origin */
-function getCorsHeaders(request: Request): Record<string, string> {
+function getCorsHeaders(request: Request): Record<string, string> | null {
 	// Allowed origins for CORS (restrictive for security)
 	const allowedOrigins = [
 		"https://lornu.ai",
@@ -481,10 +481,15 @@ function getCorsHeaders(request: Request): Record<string, string> {
 	];
 
 	const origin = request.headers.get("Origin");
-	const allowOrigin = origin && allowedOrigins.includes(origin) ? origin : "null";
+
+	// Security: Only return CORS headers for allowed origins
+	// Returning "null" or headers for unauthorized origins is exploitable
+	if (!origin || !allowedOrigins.includes(origin)) {
+		return null; // No CORS headers for unauthorized origins
+	}
 
 	return {
-		"Access-Control-Allow-Origin": allowOrigin,
+		"Access-Control-Allow-Origin": origin,
 		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, X-API-Key",
 		"Access-Control-Max-Age": "86400", // 24 hours
@@ -508,15 +513,15 @@ function checkApiKey(request: Request, env: Env): boolean {
 	const origin = request.headers.get("Origin");
 	const referer = request.headers.get("Referer");
 	
+	// Security: Use exact hostname matching to prevent subdomain attacks
+	// Using .includes() would allow evil.lornu.ai to bypass authentication
 	const isSameOrigin = 
-		// Hostname matches lornu.ai
+		// Hostname matches lornu.ai exactly (prevents subdomain attacks)
 		(hostname === "lornu.ai" || hostname === "www.lornu.ai") ||
-		// Origin header matches (for cross-origin same-site)
+		// Origin header matches exactly (for cross-origin same-site)
 		(origin && (origin === "https://lornu.ai" || origin === "https://www.lornu.ai")) ||
 		// Referer indicates it's from lornu.ai (same-origin requests often use Referer instead of Origin)
-		(referer && (referer.startsWith("https://lornu.ai/") || referer.startsWith("https://www.lornu.ai/"))) ||
-		// No Origin header often means same-origin request (browsers omit it for same-origin)
-		(!origin && hostname && hostname.includes("lornu.ai"));
+		(referer && (referer.startsWith("https://lornu.ai/") || referer.startsWith("https://www.lornu.ai/")));
 	
 	if (isSameOrigin) {
 		// Same-origin requests don't need API key (frontend is served from same Worker)
@@ -563,7 +568,7 @@ export default {
 		// Handle CORS preflight
 		if (request.method === "OPTIONS") {
 			return new Response(null, {
-				headers: corsHeaders,
+				headers: corsHeaders || {},
 			});
 		}
 
@@ -587,7 +592,7 @@ export default {
 					// Removed: gatewayId, gatewayUrl, vertexAiConfigured, vertexAiAuthConfigured, vertexAiTokenCached
 					// These expose sensitive configuration details
 				}),
-				{ headers: { "Content-Type": "application/json", ...corsHeaders } }
+				{ headers: { "Content-Type": "application/json", ...(corsHeaders || {}) } }
 			);
 		}
 
@@ -600,7 +605,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), { 
 					status: 405, 
-					headers: { "Content-Type": "application/json", ...corsHeaders }
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) }
 				});
 			}
 
@@ -612,7 +617,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 401,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
@@ -625,7 +630,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 413,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
@@ -640,7 +645,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 400,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
@@ -657,7 +662,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 400,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
@@ -669,7 +674,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 400,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
@@ -683,7 +688,7 @@ export default {
 					};
 					return new Response(JSON.stringify(errorResponse), {
 						status: 400,
-						headers: { "Content-Type": "application/json", ...corsHeaders },
+						headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 					});
 				}
 			}
@@ -698,7 +703,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 400,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
@@ -723,7 +728,7 @@ export default {
 					}));
 					
 					return new Response(JSON.stringify({ answer: cached, cached: true, model, modelName: modelName || undefined }), {
-						headers: { "Content-Type": "application/json", ...corsHeaders },
+						headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 					});
 				}
 
@@ -747,7 +752,7 @@ export default {
 				}
 
 				return new Response(JSON.stringify({ answer, cached: false, model, modelName: modelName || undefined }), {
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			} catch (error: any) {
 				// Log errors
@@ -770,7 +775,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 500,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 		}

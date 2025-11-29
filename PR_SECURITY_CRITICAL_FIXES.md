@@ -7,7 +7,7 @@ This PR addresses **3 Critical** and **2 High** security vulnerabilities identif
 ## Critical Fixes
 
 ### 1. ✅ CORS Restriction (CRITICAL)
-**Before:** CORS set to wildcard `*` allowing any origin  
+**Before:** CORS set to wildcard `*` allowing any origin
 **After:** CORS restricted to specific origins (`lornu.ai`, `www.lornu.ai`)
 
 **Changes:**
@@ -21,7 +21,7 @@ This PR addresses **3 Critical** and **2 High** security vulnerabilities identif
 ---
 
 ### 2. ✅ API Key Authentication (CRITICAL)
-**Before:** `/query` endpoint publicly accessible without authentication  
+**Before:** `/query` endpoint publicly accessible without authentication
 **After:** API key required via `X-API-Key` header (with same-origin exception)
 
 **Changes:**
@@ -47,7 +47,7 @@ wrangler secret put API_KEY
 ---
 
 ### 3. ✅ Input Validation & Size Limits (CRITICAL)
-**Before:** No validation on inputs; unlimited request size  
+**Before:** No validation on inputs; unlimited request size
 **After:** Comprehensive input validation and size limits
 
 **Changes:**
@@ -64,7 +64,7 @@ wrangler secret put API_KEY
 ## High Priority Fixes
 
 ### 4. ✅ Sanitize `/status` Endpoint (HIGH)
-**Before:** Exposed gateway IDs, account IDs, and configuration details  
+**Before:** Exposed gateway IDs, account IDs, and configuration details
 **After:** Minimal public status (version, models, timestamp only)
 
 **Removed Fields:**
@@ -85,7 +85,7 @@ wrangler secret put API_KEY
 ---
 
 ### 5. ✅ Improved Error Messages (HIGH)
-**Before:** Error messages exposed account IDs and internal URLs  
+**Before:** Error messages exposed account IDs and internal URLs
 **After:** Generic error messages without sensitive information
 
 **Changes:**
@@ -218,12 +218,12 @@ curl -X POST https://lornu.ai/query \
 | Error Message Leaks | HIGH | ✅ Fixed |
 | Input Validation | HIGH | ✅ Fixed |
 
-**Critical Issues Fixed:** 3/3  
-**High Issues Fixed:** 3/3  
+**Critical Issues Fixed:** 3/3
+**High Issues Fixed:** 3/3
 **Remaining:** Rate limiting (Phase 2)
 
 ---
 
-**Labels:** `security`, `critical`, `cursor-ide`, `breaking-change`  
+**Labels:** `security`, `critical`, `cursor-ide`, `breaking-change`
 **Priority:** **IMMEDIATE**
 

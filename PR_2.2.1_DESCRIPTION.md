@@ -56,7 +56,7 @@ docs/planning/deploy-pr23-summary.md          (Gemini integration notes)
 ### Error Code Structure
 
 ```typescript
-export type ErrorCode = 
+export type ErrorCode =
   | "auth_error"           // Authentication/OAuth2 errors
   | "config_missing"       // Missing required configuration
   | "provider_error"       // AI provider API errors
@@ -99,7 +99,7 @@ Added documentation explaining why KV storage is used instead of in-memory Maps:
      -H "Content-Type: application/json" \
      -d '{"prompt": "test", "model": "gemini"}'
    # Should return structured error with code: "config_missing"
-   
+
    # Invalid JSON
    curl -X POST http://localhost:8787/query \
      -H "Content-Type: application/json" \

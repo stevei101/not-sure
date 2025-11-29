@@ -23,9 +23,9 @@ function checkApiKey(request: Request, env: Env): boolean {
   // Allow same-origin requests (from lornu.ai frontend) without API key
   const url = new URL(request.url);
   const origin = request.headers.get("Origin");
-  const isSameOrigin = !origin || origin === url.origin || 
+  const isSameOrigin = !origin || origin === url.origin ||
     origin === "https://lornu.ai" || origin === "https://www.lornu.ai";
-  
+
   if (isSameOrigin) {
     return true; // Same-origin requests don't need API key
   }
@@ -38,8 +38,8 @@ function checkApiKey(request: Request, env: Env): boolean {
 
 ## What This Means
 
-✅ **Frontend works** - lornu.ai search works without API key  
-✅ **Security maintained** - External API calls still require API key  
+✅ **Frontend works** - lornu.ai search works without API key
+✅ **Security maintained** - External API calls still require API key
 ✅ **No frontend changes needed** - Frontend doesn't need to send API key
 
 ## Testing
