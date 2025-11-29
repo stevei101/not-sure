@@ -2,8 +2,8 @@
  * Multi-Model RAG-enabled Cloudflare Worker
  * 
  * Supports:
- * - Cloudflare AI (Llama 2 7B)
- * - Google Vertex AI (Gemini models)
+ * - Google AI Studio (Gemini Flash) via AI Gateway
+ * - Google Vertex AI (Gemini models) - direct API
  * 
  * POST /query
  * {
@@ -35,9 +35,13 @@ export interface ErrorResponse {
 export interface Env {
 	AI: Ai;
 	RAG_KV: KVNamespace;
-	CLOUDFLARE_API_TOKEN?: string;
+	CLOUDFLARE_API_TOKEN?: string; // Cloudflare API token (from CF_API_TOKEN GitHub secret)
+	AI_GATEWAY_AUTH_TOKEN?: string; // Gateway-specific authentication token (created in dashboard) - prioritized if set
+	GEMINI_API_KEY?: string; // Google AI Studio/Gemini API key for provider authentication (from GEMINI_API_KEY GitHub secret, optional if configured in gateway)
+	API_KEY?: string; // API key for authenticating requests to /query endpoint (set as Worker secret)
 	ACCOUNT_ID: string;
-	AI_GATEWAY_ID: string;
+	AI_GATEWAY_ID: string; // Gateway ID (for provider-specific paths)
+	AI_GATEWAY_NAME?: string; // Gateway name (for /compat endpoint) - defaults to "not-sure-ai-gateway"
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
 	// Vertex AI configuration
@@ -59,7 +63,7 @@ async function hashPrompt(prompt: string, model: string): Promise<string> {
 		.join("");
 }
 
-/** Helper: Construct Gateway URL */
+/** Helper: Construct Gateway URL (Provider-Specific Path) */
 function getGatewayUrl(provider: string, env: Env): string {
 	// If the user has a custom domain that already includes the account/gateway mapping,
 	// they can set AI_GATEWAY_SKIP_PATH_CONSTRUCTION to "true".
@@ -70,33 +74,105 @@ function getGatewayUrl(provider: string, env: Env): string {
 	return `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/${env.AI_GATEWAY_ID}/${provider}`;
 }
 
-/** Call Cloudflare AI */
-async function callCloudflareAI(prompt: string, env: Env): Promise<string> {
+/** Helper: Construct Gateway Compat Endpoint URL (OpenAI-Compatible) */
+function getGatewayCompatUrl(env: Env): string {
+	const gatewayName = env.AI_GATEWAY_NAME || "not-sure-ai-gateway";
+	return `${env.AI_GATEWAY_URL}/${env.ACCOUNT_ID}/${gatewayName}/compat`;
+}
+
+/** Call Cloudflare AI (via Gateway) */
+async function callCloudflareAI(prompt: string, env: Env, modelName?: string): Promise<string> {
 	const messages = [
 		{ role: "system", content: "You are a helpful AI assistant." },
 		{ role: "user", content: prompt },
 	];
 
-	// Using REST API via Gateway as per requirements
-	const gatewayEndpoint = `${getGatewayUrl("workers-ai", env)}/@cf/meta/llama-2-7b-chat-fp16`;
+	// Use OpenAI-compatible /compat endpoint (simpler, uses gateway name)
+	const gatewayEndpoint = `${getGatewayCompatUrl(env)}/chat/completions`;
+
+	// Build headers for gateway request
+	// Gateway auth header is optional:
+	// - If authentication is ENABLED: Include 'cf-aig-authorization' header with token
+	// - If authentication is DISABLED: Header not required (can work without it)
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+	};
+
+	// Add gateway auth header only if token is available (optional when auth disabled)
+	// Priority: AI_GATEWAY_AUTH_TOKEN (gateway-specific) → CLOUDFLARE_API_TOKEN (general API token)
+	const gatewayAuthToken = env.AI_GATEWAY_AUTH_TOKEN || env.CLOUDFLARE_API_TOKEN;
+	if (gatewayAuthToken) {
+		headers["cf-aig-authorization"] = `Bearer ${gatewayAuthToken}`;
+	}
+
+	// Add provider Authorization header for Google AI Studio (if API key provided)
+	// Note: If provider auth is configured in gateway dashboard, this header may not be needed
+	// GEMINI_API_KEY is the same as Google AI Studio API key
+	if (env.GEMINI_API_KEY) {
+		headers["Authorization"] = `Bearer ${env.GEMINI_API_KEY}`;
+	}
+
+	// Determine model to use: provided model name, or default to google-ai-studio/gemini-flash-latest
+	// Supported formats:
+	// - google-ai-studio/gemini-flash-latest (Google AI Studio)
+	// - workers-ai/@cf/meta/llama-2-7b-chat-fp16 (Workers AI)
+	// - Any other gateway-supported model identifier
+	const model = modelName || "google-ai-studio/gemini-flash-latest";
+
+	// For gateway compat endpoint, use OpenAI-compatible format
+	const requestBody = {
+		model: model,
+		messages: messages,
+	};
 
 	const response = await fetch(gatewayEndpoint, {
 		method: "POST",
-		headers: {
-			"Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-			"Content-Type": "application/json"
-		},
-		body: JSON.stringify({ messages })
+		headers,
+		body: JSON.stringify(requestBody)
 	});
 
 	if (!response.ok) {
 		const errorText = await response.text();
+		
+		// Check for error 2001 (Gateway configuration required)
+		try {
+			const errorData = JSON.parse(errorText);
+			if (errorData.error && Array.isArray(errorData.error)) {
+				const gatewayError = errorData.error.find((e: any) => e.code === 2001);
+				if (gatewayError) {
+					// Security: Don't expose account ID in error message
+					const error = new Error(
+						`AI Gateway configuration required (error 2001): ${gatewayError.message}. ` +
+						`Please check the gateway configuration in the Cloudflare dashboard.`
+					);
+					(error as any).code = "config_missing" as ErrorCode;
+					// Security: Don't include sensitive details in error response
+					(error as any).details = {
+						gatewayError: { code: gatewayError.code, message: gatewayError.message },
+						// Removed: helpUrl with account ID, sensitive hints
+					};
+					throw error;
+				}
+			}
+		} catch {
+			// If error parsing fails, continue with generic error handling
+		}
+		
 		const error = new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
 		(error as any).code = "provider_error" as ErrorCode;
+		(error as any).details = errorText;
 		throw error;
 	}
 
 	const data: any = await response.json();
+	
+	// Handle OpenAI-compatible response format (from /compat endpoint)
+	// Response format: { choices: [{ message: { content: "..." } }] }
+	if (data.choices && data.choices.length > 0 && data.choices[0].message?.content) {
+		return data.choices[0].message.content;
+	}
+	
+	// Fallback to original format (provider-specific endpoint)
 	return data.result?.response ?? data.response ?? "";
 }
 
@@ -144,6 +220,7 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
  * Implements JWT signing using Web Crypto API for Google OAuth2 authentication.
  * Tokens are cached in KV to reduce authentication overhead (tokens valid for ~1 hour).
  * 
+<<<<<<< HEAD
  * Note: We use KV storage for token caching instead of in-memory Maps because
  * Cloudflare Workers are stateless - each request runs in isolation. KV provides
  * persistent caching across requests, which is essential for OAuth2 token reuse.
@@ -269,13 +346,15 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 }
 
 /** Call Google Vertex AI (Gemini) */
-async function callGeminiAI(prompt: string, env: Env): Promise<string> {
+async function callGeminiAI(prompt: string, env: Env, modelName?: string): Promise<string> {
 	// Validate required Vertex AI configuration
-	if (!env.GCP_PROJECT_ID || !env.VERTEX_AI_LOCATION || !env.VERTEX_AI_MODEL) {
+	const projectId = env.GCP_PROJECT_ID;
+	const location = env.VERTEX_AI_LOCATION;
+	
+	if (!projectId || !location) {
 		const missing = [
-			!env.GCP_PROJECT_ID && "GCP_PROJECT_ID",
-			!env.VERTEX_AI_LOCATION && "VERTEX_AI_LOCATION",
-			!env.VERTEX_AI_MODEL && "VERTEX_AI_MODEL",
+			!projectId && "GCP_PROJECT_ID",
+			!location && "VERTEX_AI_LOCATION",
 		].filter(Boolean);
 		const error = new Error(`Vertex AI configuration missing. Required: ${missing.join(", ")}`);
 		(error as any).code = "config_missing" as ErrorCode;
@@ -288,9 +367,8 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 		throw error;
 	}
 
-	const projectId = env.GCP_PROJECT_ID;
-	const location = env.VERTEX_AI_LOCATION;
-	const model = env.VERTEX_AI_MODEL;
+	// Use provided model name, or fall back to configured model, or default
+	const model = modelName || env.VERTEX_AI_MODEL || "gemini-1.5-flash";
 
 	// Vertex AI REST API endpoint for Gemini models
 	// Note: Vertex AI calls go directly to Google's API (not through Cloudflare AI Gateway)
@@ -367,12 +445,12 @@ async function callGeminiAI(prompt: string, env: Env): Promise<string> {
 }
 
 /** Route to the appropriate AI model */
-async function callAI(prompt: string, model: AIModel, env: Env): Promise<string> {
+async function callAI(prompt: string, model: AIModel, env: Env, modelName?: string): Promise<string> {
 	switch (model) {
 		case "cloudflare":
-			return callCloudflareAI(prompt, env);
+			return callCloudflareAI(prompt, env, modelName);
 		case "gemini":
-			return callGeminiAI(prompt, env);
+			return callGeminiAI(prompt, env, modelName);
 		default:
 			const error = new Error(`Unknown model: ${model}`);
 			(error as any).code = "invalid_request" as ErrorCode;
@@ -380,76 +458,180 @@ async function callAI(prompt: string, model: AIModel, env: Env): Promise<string>
 	}
 }
 
+/** Helper: Get client IP address from request (anonymized for privacy) */
+function getClientIP(request: Request): string {
+	// Cloudflare provides IP in CF-Connecting-IP header
+	const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
+	// Anonymize last octet for privacy (e.g., 192.168.1.123 -> 192.168.1.0)
+	const parts = ip.split(".");
+	if (parts.length === 4) {
+		parts[3] = "0";
+		return parts.join(".");
+	}
+	return ip;
+}
+
+/** Helper: Build CORS headers based on request origin */
+function getCorsHeaders(request: Request): Record<string, string> | null {
+	// Allowed origins for CORS (restrictive for security)
+	const allowedOrigins = [
+		"https://lornu.ai",
+		"https://www.lornu.ai",
+		// Add staging environment if needed:
+		// "https://staging.lornu.ai",
+	];
+
+	const origin = request.headers.get("Origin");
+
+	// Security: Only return CORS headers for allowed origins
+	// Returning "null" or headers for unauthorized origins is exploitable
+	if (!origin || !allowedOrigins.includes(origin)) {
+		return null; // No CORS headers for unauthorized origins
+	}
+
+	return {
+		"Access-Control-Allow-Origin": origin,
+		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+		"Access-Control-Allow-Headers": "Content-Type, X-API-Key",
+		"Access-Control-Max-Age": "86400", // 24 hours
+	};
+}
+
+/** Helper: Check API key authentication */
+function checkApiKey(request: Request, env: Env): boolean {
+	// If API_KEY is not configured, allow requests (backward compatibility during migration)
+	if (!env.API_KEY) {
+		return true;
+	}
+
+	// Security: Allow same-origin requests (frontend from lornu.ai) without API key
+	// API key is only required for external API calls (cross-origin)
+	// 
+	// IMPORTANT: Only check Origin and Referer headers, NOT hostname.
+	// Checking hostname would always be true for requests to the worker's domain,
+	// effectively bypassing API key authentication for all requests.
+	const origin = request.headers.get("Origin");
+	const referer = request.headers.get("Referer");
+	
+	const allowedOrigins = ["https://lornu.ai", "https://www.lornu.ai"];
+	
+	const isSameOrigin =
+		// Origin header matches allowed origins (browser sets this for cross-origin requests)
+		(origin && allowedOrigins.includes(origin)) ||
+		// Referer header matches allowed origins (fallback for some same-origin requests)
+		(referer && allowedOrigins.some(o => referer.startsWith(`${o}/`)));
+	
+	if (isSameOrigin) {
+		// Same-origin requests don't need API key (frontend is served from same Worker)
+		return true;
+	}
+
+	// External API calls require API key
+	const providedKey = request.headers.get("X-API-Key");
+	return providedKey === env.API_KEY;
+}
+
+/** Helper: Log user query for analytics */
+function logUserQuery(request: Request, prompt: string, model: string, modelName?: string, cf?: IncomingRequestCfProperties) {
+	try {
+		const logData = {
+			timestamp: new Date().toISOString(),
+			endpoint: "/query",
+			prompt: prompt.substring(0, 500), // Truncate for logs (first 500 chars)
+			promptLength: prompt.length,
+			model: model,
+			modelName: modelName || null,
+			clientIP: getClientIP(request),
+			country: cf?.country || null,
+			city: cf?.city || null,
+			userAgent: request.headers.get("User-Agent")?.substring(0, 100) || null, // Truncate
+		};
+		
+		// Log as structured JSON for easy parsing
+		console.log(JSON.stringify({
+			type: "user_query",
+			...logData
+		}));
+	} catch (error) {
+		// Don't fail requests if logging fails
+		console.error("Failed to log user query:", error);
+	}
+}
+
 export default {
-	async fetch(request: Request, env: Env) {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext, cf?: IncomingRequestCfProperties) {
 		const url = new URL(request.url);
+		const corsHeaders = getCorsHeaders(request);
 
 		// Handle CORS preflight
 		if (request.method === "OPTIONS") {
 			return new Response(null, {
-				headers: {
-					"Access-Control-Allow-Origin": "*",
-					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-					"Access-Control-Allow-Headers": "Content-Type",
-				},
+				headers: corsHeaders || {},
 			});
 		}
 
-		// CORS headers for all responses
-		const corsHeaders = {
-			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type",
-		};
-
-		// Health-check endpoint
+		// Health-check endpoint (public, no auth required)
 		if (request.method === "GET" && url.pathname === "/status") {
 			const models: AIModel[] = ["cloudflare"];
 			const vertexAiConfigured = !!(env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL);
-			const vertexAiAuthConfigured = !!(vertexAiConfigured && env.VERTEX_AI_SERVICE_ACCOUNT_JSON);
 			
 			// Add gemini if Vertex AI is configured
-			if (vertexAiConfigured) {
+			if (env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL) {
 				models.push("gemini");
 			}
 
-			// Check if token is cached (non-blocking, for informational purposes)
-			let vertexAiTokenCached = false;
-			if (vertexAiAuthConfigured) {
-				try {
-					const cachedToken = await env.RAG_KV.get("vertex-ai-access-token");
-					if (cachedToken) {
-						vertexAiTokenCached = true;
-					}
-				} catch {
-					// Ignore KV errors for status check
-				}
-			}
-
+			// Public status endpoint - minimal information only (security: no sensitive IDs)
 			return new Response(
 				JSON.stringify({
 					ok: true,
 					version: "2.2.1",
 					timestamp: new Date().toISOString(),
 					models,
-					gatewayId: env.AI_GATEWAY_ID,
-					gatewayUrl: getGatewayUrl("workers-ai", env),
-					vertexAiConfigured,
-					vertexAiAuthConfigured,
-					vertexAiTokenCached,
+					// Removed: gatewayId, gatewayUrl, vertexAiConfigured, vertexAiAuthConfigured, vertexAiTokenCached
+					// These expose sensitive configuration details
 				}),
-				{ headers: { "Content-Type": "application/json", ...corsHeaders } }
+				{ headers: { "Content-Type": "application/json", ...(corsHeaders || {}) } }
 			);
 		}
 
-		// RAG query endpoint
+		// RAG query endpoint (requires authentication)
 		if (url.pathname === "/query") {
 			if (request.method !== "POST") {
-				return new Response("Only POST /query is supported", { 
-					status: 404, 
-					headers: corsHeaders 
+				const errorResponse: ErrorResponse = {
+					error: "Method not allowed. Only POST is supported.",
+					code: "invalid_request",
+				};
+				return new Response(JSON.stringify(errorResponse), { 
+					status: 405, 
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) }
 				});
 			}
+
+			// Security: Check API key authentication
+			if (!checkApiKey(request, env)) {
+				const errorResponse: ErrorResponse = {
+					error: "Unauthorized. Valid API key required in X-API-Key header.",
+					code: "auth_error",
+				};
+				return new Response(JSON.stringify(errorResponse), {
+					status: 401,
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
+				});
+			}
+
+			// Security: Validate request size (prevent resource exhaustion)
+			const contentLength = request.headers.get("Content-Length");
+			if (contentLength && parseInt(contentLength) > 100000) { // 100KB limit
+				const errorResponse: ErrorResponse = {
+					error: "Request body too large. Maximum size: 100KB",
+					code: "invalid_request",
+				};
+				return new Response(JSON.stringify(errorResponse), {
+					status: 413,
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
+				});
+			}
+
 			let body: any;
 			try {
 				body = await request.json();
@@ -461,22 +643,62 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 400,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
+			// Security: Validate and sanitize inputs
 			const prompt: string = body.prompt;
 			const model: AIModel = body.model || "cloudflare";
+			const modelName: string | undefined = body.modelName;
 
-			if (!prompt) {
+			// Validate prompt
+			if (!prompt || typeof prompt !== "string") {
 				const errorResponse: ErrorResponse = {
-					error: 'Missing "prompt" field',
+					error: 'Missing or invalid "prompt" field. Must be a non-empty string.',
 					code: "invalid_request",
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 400,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
+			}
+
+			// Security: Limit prompt length (prevent resource exhaustion)
+			if (prompt.length > 10000) {
+				const errorResponse: ErrorResponse = {
+					error: `Prompt too long. Maximum length: 10,000 characters. Received: ${prompt.length}`,
+					code: "invalid_request",
+				};
+				return new Response(JSON.stringify(errorResponse), {
+					status: 400,
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
+				});
+			}
+
+			// Security: Validate model name format (if provided)
+			if (modelName && typeof modelName === "string") {
+				// Forward slashes (/) are REQUIRED for legitimate model names:
+				// - Cloudflare AI Gateway: "google-ai-studio/gemini-flash-latest", "workers-ai/@cf/meta/llama-2-7b-chat-fp16"
+				// - These are valid model identifiers used by the gateway API
+				//
+				// Security note: modelName is used in:
+				// 1. JSON request body (Cloudflare AI) - safe, no path traversal risk
+				// 2. URL path segment (Vertex AI) - validated by regex and length limit, no file system access
+				// 3. Cache keys (hashed) - safe, no injection risk
+				//
+				// The regex pattern allows: alphanumeric, hyphens, slashes, underscores, dots, and @ symbol
+				// Length limit (200 chars) prevents excessive input
+				if (!/^[a-z0-9\-/@_.]+$/i.test(modelName) || modelName.length > 200) {
+					const errorResponse: ErrorResponse = {
+						error: "Invalid model name format. Use alphanumeric characters, hyphens, slashes, underscores, dots, and @ only. Maximum length: 200 characters.",
+						code: "invalid_request",
+					};
+					return new Response(JSON.stringify(errorResponse), {
+						status: 400,
+						headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
+					});
+				}
 			}
 
 			// Validate model
@@ -489,24 +711,47 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 400,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 
 			try {
-				// 1️⃣ Try cached context from KV (cache per model+prompt combination)
-				const key = await hashPrompt(prompt, model);
+				// Log user query for analytics
+				logUserQuery(request, prompt, model, modelName, cf);
+
+				// 1️⃣ Try cached context from KV (cache per model+modelName+prompt combination)
+				const cacheKey = modelName ? `${model}:${modelName}:${prompt}` : `${model}:${prompt}`;
+				const key = await hashPrompt(cacheKey, model);
 				const cached = await env.RAG_KV.get(key);
 
 				// If cached, return immediately
 				if (cached) {
-					return new Response(JSON.stringify({ answer: cached, cached: true, model }), {
-						headers: { "Content-Type": "application/json", ...corsHeaders },
+					// Log cache hit
+					console.log(JSON.stringify({
+						type: "query_result",
+						timestamp: new Date().toISOString(),
+						cached: true,
+						model: model,
+						promptLength: prompt.length,
+					}));
+					
+					return new Response(JSON.stringify({ answer: cached, cached: true, model, modelName: modelName || undefined }), {
+						headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 					});
 				}
 
-				// 2️⃣ Call the selected AI model
-				const answer = await callAI(prompt, model, env);
+				// 2️⃣ Call the selected AI model with optional model name
+				const answer = await callAI(prompt, model, env, modelName);
+				
+				// Log successful query
+				console.log(JSON.stringify({
+					type: "query_result",
+					timestamp: new Date().toISOString(),
+					cached: false,
+					model: model,
+					promptLength: prompt.length,
+					answerLength: answer.length,
+				}));
 
 				//️ 3️⃣ Cache the answer for future identical prompts (1‑week TTL)
 				// Only cache non-empty answers
@@ -514,10 +759,20 @@ export default {
 					await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
 				}
 
-				return new Response(JSON.stringify({ answer, cached: false, model }), {
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+				return new Response(JSON.stringify({ answer, cached: false, model, modelName: modelName || undefined }), {
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			} catch (error: any) {
+				// Log errors
+				console.error(JSON.stringify({
+					type: "query_error",
+					timestamp: new Date().toISOString(),
+					model: model,
+					promptLength: prompt.length,
+					errorCode: error.code || "internal_error",
+					errorMessage: error.message || "Internal server error",
+				}));
+				
 				// Extract error code if available, default to internal_error
 				const errorCode: ErrorCode = error.code || "internal_error";
 				const errorResponse: ErrorResponse = {
@@ -528,7 +783,7 @@ export default {
 				};
 				return new Response(JSON.stringify(errorResponse), {
 					status: 500,
-					headers: { "Content-Type": "application/json", ...corsHeaders },
+					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
 			}
 		}
