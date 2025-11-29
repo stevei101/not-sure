@@ -506,23 +506,20 @@ function checkApiKey(request: Request, env: Env): boolean {
 
 	// Security: Allow same-origin requests (frontend from lornu.ai) without API key
 	// API key is only required for external API calls (cross-origin)
-	const url = new URL(request.url);
-	const hostname = url.hostname;
-	
-	// Check if request is from lornu.ai (same-origin)
-	// Same-origin requests often don't have Origin header, so check hostname and Referer
+	// 
+	// IMPORTANT: Only check Origin and Referer headers, NOT hostname.
+	// Checking hostname would always be true for requests to the worker's domain,
+	// effectively bypassing API key authentication for all requests.
 	const origin = request.headers.get("Origin");
 	const referer = request.headers.get("Referer");
 	
-	// Security: Use exact hostname matching to prevent subdomain attacks
-	// Using .includes() would allow evil.lornu.ai to bypass authentication
-	const isSameOrigin = 
-		// Hostname matches lornu.ai exactly (prevents subdomain attacks)
-		(hostname === "lornu.ai" || hostname === "www.lornu.ai") ||
-		// Origin header matches exactly (for cross-origin same-site)
-		(origin && (origin === "https://lornu.ai" || origin === "https://www.lornu.ai")) ||
-		// Referer indicates it's from lornu.ai (same-origin requests often use Referer instead of Origin)
-		(referer && (referer.startsWith("https://lornu.ai/") || referer.startsWith("https://www.lornu.ai/")));
+	const allowedOrigins = ["https://lornu.ai", "https://www.lornu.ai"];
+	
+	const isSameOrigin =
+		// Origin header matches allowed origins (browser sets this for cross-origin requests)
+		(origin && allowedOrigins.includes(origin)) ||
+		// Referer header matches allowed origins (fallback for some same-origin requests)
+		(referer && allowedOrigins.some(o => referer.startsWith(`${o}/`)));
 	
 	if (isSameOrigin) {
 		// Same-origin requests don't need API key (frontend is served from same Worker)
