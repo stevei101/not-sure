@@ -363,9 +363,9 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 	}
 
 	// Cache the token (subtract 10 minutes from expires_in for safety margin)
-	// Guard against negative TTL: ensure minimum 5 minutes (300 seconds)
+	// Guard against negative TTL: ensure minimum 1 minute (60 seconds) to respect shorter token lifetimes
 	const expiresIn = tokenData.expires_in || 3600; // Default to 1 hour if not provided
-	const safeExpires = Math.max(expiresIn - 600, 300); // Minimum 5 minutes
+	const safeExpires = Math.max(expiresIn - 600, 60); // Minimum 1 minute
 	
 	try {
 		await env.RAG_KV.put(cacheKey, tokenData.access_token, { expirationTtl: safeExpires });
