@@ -220,10 +220,13 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
  * Implements JWT signing using Web Crypto API for Google OAuth2 authentication.
  * Tokens are cached in KV to reduce authentication overhead (tokens valid for ~1 hour).
  * 
+<<<<<<< HEAD
  * Note: We use KV storage for token caching instead of in-memory Maps because
  * Cloudflare Workers are stateless - each request runs in isolation. KV provides
  * persistent caching across requests, which is essential for OAuth2 token reuse.
  * 
+=======
+>>>>>>> origin/develop
  * @param serviceAccountJson - Service account JSON key string
  * @param env - Worker environment with KV access for token caching
  * @returns OAuth2 access token for Google APIs
@@ -231,8 +234,12 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
  * TODO: Add unit tests for JWT signing and error handling branches
  */
 async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promise<string> {
+<<<<<<< HEAD
 	// Check KV cache first (tokens are valid for ~1 hour)
 	// KV is used instead of in-memory cache because Cloudflare Workers are stateless
+=======
+	// Check cache first (tokens are valid for ~1 hour)
+>>>>>>> origin/develop
 	const cacheKey = "vertex-ai-access-token";
 	const cachedToken = await env.RAG_KV.get(cacheKey);
 	if (cachedToken) {
@@ -243,6 +250,7 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 	let serviceAccount: ServiceAccount;
 	try {
 		serviceAccount = JSON.parse(serviceAccountJson);
+<<<<<<< HEAD
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : "unknown error";
 		throw new Error(`Invalid service account JSON format: ${errorMessage}`);
@@ -254,6 +262,14 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 			!serviceAccount.client_email && "client_email",
 		].filter(Boolean);
 		throw new Error(`Service account JSON missing required fields: ${missingFields.join(", ")}`);
+=======
+	} catch {
+		throw new Error("Invalid service account JSON format");
+	}
+
+	if (!serviceAccount.private_key || !serviceAccount.client_email) {
+		throw new Error("Service account JSON missing required fields (private_key, client_email)");
+>>>>>>> origin/develop
 	}
 
 	// Create JWT for Google OAuth2 token exchange
@@ -325,16 +341,24 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 
 	if (!tokenResponse.ok) {
 		const errorText = await tokenResponse.text();
+<<<<<<< HEAD
 		const error = new Error(`Failed to get access token (${tokenResponse.status}): ${errorText}`);
 		(error as any).code = "auth_error" as ErrorCode;
 		throw error;
+=======
+		throw new Error(`Failed to get access token (${tokenResponse.status}): ${errorText}`);
+>>>>>>> origin/develop
 	}
 
 	const tokenData: GoogleTokenResponse = await tokenResponse.json();
 	if (!tokenData.access_token) {
+<<<<<<< HEAD
 		const error = new Error("No access token in response");
 		(error as any).code = "auth_error" as ErrorCode;
 		throw error;
+=======
+		throw new Error("No access token in response");
+>>>>>>> origin/develop
 	}
 
 	// Cache the token (use expires_in if provided, otherwise default to 50 minutes to be safe)
@@ -345,6 +369,7 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 }
 
 /** Call Google Vertex AI (Gemini) */
+<<<<<<< HEAD
 async function callGeminiAI(prompt: string, env: Env, modelName?: string): Promise<string> {
 	// Validate required Vertex AI configuration
 	const projectId = env.GCP_PROJECT_ID;
@@ -368,6 +393,21 @@ async function callGeminiAI(prompt: string, env: Env, modelName?: string): Promi
 
 	// Use provided model name, or fall back to configured model, or default
 	const model = modelName || env.VERTEX_AI_MODEL || "gemini-1.5-flash";
+=======
+async function callGeminiAI(prompt: string, env: Env): Promise<string> {
+	// Validate required Vertex AI configuration
+	if (!env.GCP_PROJECT_ID || !env.VERTEX_AI_LOCATION || !env.VERTEX_AI_MODEL) {
+		throw new Error("Vertex AI configuration missing. Required: GCP_PROJECT_ID, VERTEX_AI_LOCATION, VERTEX_AI_MODEL");
+	}
+
+	if (!env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+		throw new Error("Vertex AI service account JSON not configured. Set VERTEX_AI_SERVICE_ACCOUNT_JSON secret.");
+	}
+
+	const projectId = env.GCP_PROJECT_ID;
+	const location = env.VERTEX_AI_LOCATION;
+	const model = env.VERTEX_AI_MODEL;
+>>>>>>> origin/develop
 
 	// Vertex AI REST API endpoint for Gemini models
 	// Note: Vertex AI calls go directly to Google's API (not through Cloudflare AI Gateway)
@@ -402,9 +442,13 @@ async function callGeminiAI(prompt: string, env: Env, modelName?: string): Promi
 
 	if (!response.ok) {
 		const errorText = await response.text();
+<<<<<<< HEAD
 		const error = new Error(`Vertex AI error (${response.status}): ${errorText}`);
 		(error as any).code = "provider_error" as ErrorCode;
 		throw error;
+=======
+		throw new Error(`Vertex AI error (${response.status}): ${errorText}`);
+>>>>>>> origin/develop
 	}
 
 	const data: VertexAIResponse = await response.json();
@@ -412,19 +456,27 @@ async function callGeminiAI(prompt: string, env: Env, modelName?: string): Promi
 	// Extract text from Vertex AI response
 	// Handle multiple candidates and parts for robustness
 	if (!data.candidates || data.candidates.length === 0) {
+<<<<<<< HEAD
 		const error = new Error(`No candidates in Vertex AI response. Response structure: ${JSON.stringify(data)}`);
 		(error as any).code = "provider_error" as ErrorCode;
 		(error as any).details = data;
 		throw error;
+=======
+		throw new Error("No candidates in Vertex AI response");
+>>>>>>> origin/develop
 	}
 
 	// Try first candidate
 	const firstCandidate = data.candidates[0];
 	if (!firstCandidate?.content?.parts || firstCandidate.content.parts.length === 0) {
+<<<<<<< HEAD
 		const error = new Error(`No content parts in Vertex AI response candidate. Response structure: ${JSON.stringify(data)}`);
 		(error as any).code = "provider_error" as ErrorCode;
 		(error as any).details = data;
 		throw error;
+=======
+		throw new Error("No content parts in Vertex AI response candidate");
+>>>>>>> origin/develop
 	}
 
 	// Concatenate all text parts (in case of multi-part responses)
@@ -433,10 +485,14 @@ async function callGeminiAI(prompt: string, env: Env, modelName?: string): Promi
 		.filter((text): text is string => typeof text === "string" && text.length > 0);
 
 	if (textParts.length === 0) {
+<<<<<<< HEAD
 		const error = new Error(`No text content in Vertex AI response. Response structure: ${JSON.stringify(data)}`);
 		(error as any).code = "provider_error" as ErrorCode;
 		(error as any).details = data;
 		throw error;
+=======
+		throw new Error("No text content in Vertex AI response");
+>>>>>>> origin/develop
 	}
 
 	// Join multiple parts if present, otherwise return single part
@@ -447,9 +503,15 @@ async function callGeminiAI(prompt: string, env: Env, modelName?: string): Promi
 async function callAI(prompt: string, model: AIModel, env: Env, modelName?: string): Promise<string> {
 	switch (model) {
 		case "cloudflare":
+<<<<<<< HEAD
 			return callCloudflareAI(prompt, env, modelName);
 		case "gemini":
 			return callGeminiAI(prompt, env, modelName);
+=======
+			return callCloudflareAI(prompt, env);
+		case "gemini":
+			return callGeminiAI(prompt, env);
+>>>>>>> origin/develop
 		default:
 			const error = new Error(`Unknown model: ${model}`);
 			(error as any).code = "invalid_request" as ErrorCode;
@@ -568,6 +630,7 @@ export default {
 		// Handle CORS preflight
 		if (request.method === "OPTIONS") {
 			return new Response(null, {
+<<<<<<< HEAD
 				headers: corsHeaders || {},
 			});
 		}
@@ -583,12 +646,38 @@ export default {
 			}
 
 			// Public status endpoint - minimal information only (security: no sensitive IDs)
+=======
+				headers: {
+					"Access-Control-Allow-Origin": "*",
+					"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+					"Access-Control-Allow-Headers": "Content-Type",
+				},
+			});
+		}
+
+		// CORS headers for all responses
+		const corsHeaders = {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type",
+		};
+
+		// Health-check endpoint
+		if (request.method === "GET" && url.pathname === "/status") {
+			const models: AIModel[] = ["cloudflare"];
+			// Add gemini if Vertex AI is configured
+			if (env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL) {
+				models.push("gemini");
+			}
+
+>>>>>>> origin/develop
 			return new Response(
 				JSON.stringify({
 					ok: true,
 					version: "2.2.1",
 					timestamp: new Date().toISOString(),
 					models,
+<<<<<<< HEAD
 					// Removed: gatewayId, gatewayUrl, vertexAiConfigured, vertexAiAuthConfigured, vertexAiTokenCached
 					// These expose sensitive configuration details
 				}),
@@ -777,6 +866,77 @@ export default {
 					status: 500,
 					headers: { "Content-Type": "application/json", ...(corsHeaders || {}) },
 				});
+=======
+					gatewayId: env.AI_GATEWAY_ID,
+					gatewayUrl: getGatewayUrl("test", env), // return constructed URL for verification
+					vertexAiConfigured: !!(env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL),
+
+				}),
+				{ headers: { "Content-Type": "application/json", ...corsHeaders } }
+			);
+		}
+
+		// RAG query endpoint
+		if (url.pathname === "/query") {
+			if (request.method !== "POST") {
+				return new Response("Only POST /query is supported", { 
+					status: 404, 
+					headers: corsHeaders 
+				});
+			}
+			let body: any;
+			try {
+				body = await request.json();
+			} catch {
+				return new Response("Invalid JSON body", { status: 400, headers: corsHeaders });
+			}
+
+			const prompt: string = body.prompt;
+			const model: AIModel = body.model || "cloudflare";
+
+			if (!prompt) {
+				return new Response('Missing "prompt" field', { status: 400, headers: corsHeaders });
+			}
+
+			// Validate model
+			const validModels: AIModel[] = ["cloudflare", "gemini"];
+			if (!validModels.includes(model)) {
+				return new Response(
+					JSON.stringify({ error: `Invalid model. Choose from: ${validModels.join(", ")}` }),
+					{ status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+				);
+			}
+
+			try {
+				// 1️⃣ Try cached context from KV (cache per model+prompt combination)
+				const key = await hashPrompt(prompt, model);
+				const cached = await env.RAG_KV.get(key);
+
+				// If cached, return immediately
+				if (cached) {
+					return new Response(JSON.stringify({ answer: cached, cached: true, model }), {
+						headers: { "Content-Type": "application/json", ...corsHeaders },
+					});
+				}
+
+				// 2️⃣ Call the selected AI model
+				const answer = await callAI(prompt, model, env);
+
+				//️ 3️⃣ Cache the answer for future identical prompts (1‑week TTL)
+				// Only cache non-empty answers
+				if (answer && answer.trim().length > 0) {
+					await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+				}
+
+				return new Response(JSON.stringify({ answer, cached: false, model }), {
+					headers: { "Content-Type": "application/json", ...corsHeaders },
+				});
+			} catch (error: any) {
+				return new Response(
+					JSON.stringify({ error: error.message || "Internal server error", model }),
+					{ status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+				);
+>>>>>>> origin/develop
 			}
 		}
 
