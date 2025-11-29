@@ -65,8 +65,23 @@ export async function queryAI(request: QueryRequest, apiKey?: string): Promise<Q
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText })) as { error?: string };
-    throw new Error(error.error || `API error: ${response.status}`);
+    // Try to parse structured error response
+    let errorData: ErrorResponse | { error?: string };
+    try {
+      errorData = await response.json() as ErrorResponse;
+    } catch {
+      errorData = { error: response.statusText };
+    }
+    
+    // Preserve structured error code if available
+    const error = new Error(errorData.error || `API error: ${response.status}`);
+    if ('code' in errorData && errorData.code) {
+      (error as any).code = errorData.code;
+    }
+    if ('details' in errorData && errorData.details) {
+      (error as any).details = errorData.details;
+    }
+    throw error;
   }
 
   return response.json();
