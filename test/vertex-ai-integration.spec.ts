@@ -6,7 +6,7 @@
  */
 
 import { env, SELF } from 'cloudflare:test';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import worker from '../src';
 
 describe('Vertex AI Integration - Endpoint Tests', () => {
