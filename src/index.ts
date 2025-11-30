@@ -623,7 +623,7 @@ export default {
 			const vertexAiConfigured = !!(env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL);
 			
 			// Add gemini if Vertex AI is configured
-			if (env.GCP_PROJECT_ID && env.VERTEX_AI_LOCATION && env.VERTEX_AI_MODEL) {
+			if (vertexAiConfigured) {
 				models.push("gemini");
 			}
 
