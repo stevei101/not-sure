@@ -2,89 +2,70 @@
  * Unit tests for Vertex AI integration functions
  * 
  * Tests for:
- * - PEM to ArrayBuffer conversion
- * - JWT signing and OAuth2 token exchange
+ * - PEM to ArrayBuffer conversion (using actual exported function)
+ * - Service Account JSON validation
  * - Vertex AI API response parsing
  * - Error handling paths
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// Mock a valid service account private key (base64 encoded, not a real key)
-const MOCK_PRIVATE_KEY_PEM = `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj
-MzEfYyjiWA4R4/M2bN1F0uT0pLN3w0v8y6K5K1hN6bZ4J3K5L1hN6bZ4J3K5L1h
-N6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ
-4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3
-K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1
-hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ4J3K5L1hN6bZ
-AgMBAAECggEBAKt3g8J8Y5V7j8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-ECgYEA8Y5V7j8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-ECgYEA8Y5V7j8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-KwIDAQABAoIBADt3g8J8Y5V7j8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
-L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3L8v3
------END PRIVATE KEY-----`;
-
-// Since we can't easily export these functions without refactoring,
-// we'll test the logic indirectly through integration tests
-// and create helper test utilities for specific components
+import { describe, it, expect } from 'vitest';
+import { pemToArrayBuffer } from '../src/index';
 
 describe('Vertex AI Integration - Unit Tests', () => {
 	describe('PEM to ArrayBuffer conversion', () => {
-		// Note: We'll need to export pemToArrayBuffer or test it indirectly
-		// For now, we test the logic concept
-		
 		it('should handle valid PEM format with newlines', () => {
 			const pem = `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj
 -----END PRIVATE KEY-----`;
 			
-			// Simulate the conversion logic
-			const base64 = pem
-				.replace(/-----BEGIN PRIVATE KEY-----/, "")
-				.replace(/-----END PRIVATE KEY-----/, "")
-				.replace(/\s/g, "");
+			// Test the actual function from src/index.ts
+			const result = pemToArrayBuffer(pem);
 			
-			expect(base64).toBe('MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj');
-			expect(() => atob(base64)).not.toThrow();
+			expect(result).toBeInstanceOf(ArrayBuffer);
+			expect(result.byteLength).toBeGreaterThan(0);
 		});
 
-		it('should handle PEM format with escaped newlines', () => {
+		it('should handle PEM format with Windows line endings (\\r\\n)', () => {
+			const pemWithWindowsNewlines = "-----BEGIN PRIVATE KEY-----\r\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj\r\n-----END PRIVATE KEY-----";
+			
+			// Test the actual function - should handle \r\n correctly
+			const result = pemToArrayBuffer(pemWithWindowsNewlines);
+			
+			expect(result).toBeInstanceOf(ArrayBuffer);
+			expect(result.byteLength).toBeGreaterThan(0);
+		});
+
+		it('should handle PEM format with escaped newlines (from JSON)', () => {
+			// When PEM is stored in JSON, newlines are escaped as \\n
+			// JSON.parse converts \\n to \n, so the function receives actual \n characters
 			const pemWithEscapedNewlines = "-----BEGIN PRIVATE KEY-----\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj\\n-----END PRIVATE KEY-----";
 			
-			const cleaned = pemWithEscapedNewlines.replace(/\\n/g, "\n");
-			const base64 = cleaned
-				.replace(/-----BEGIN PRIVATE KEY-----/, "")
-				.replace(/-----END PRIVATE KEY-----/, "")
-				.replace(/\s/g, "");
+			// After JSON.parse, this becomes actual \n characters
+			const parsedPem = JSON.parse(`"${pemWithEscapedNewlines}"`);
+			const result = pemToArrayBuffer(parsedPem);
 			
-			expect(base64).toBe('MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj');
+			expect(result).toBeInstanceOf(ArrayBuffer);
+			expect(result.byteLength).toBeGreaterThan(0);
 		});
 
 		it('should handle invalid PEM format gracefully', () => {
 			const invalidPem = "not a valid PEM";
 			
-			// Should not crash, but conversion will fail
-			const base64 = invalidPem
-				.replace(/-----BEGIN PRIVATE KEY-----/, "")
-				.replace(/-----END PRIVATE KEY-----/, "")
-				.replace(/\s/g, "");
+			// Should not crash, but will produce invalid base64
+			expect(() => pemToArrayBuffer(invalidPem)).not.toThrow();
+			// The result will be an ArrayBuffer, but decoding will fail if used
+			const result = pemToArrayBuffer(invalidPem);
+			expect(result).toBeInstanceOf(ArrayBuffer);
+		});
+
+		it('should remove all whitespace including tabs and spaces', () => {
+			const pemWithWhitespace = `-----BEGIN PRIVATE KEY-----
+	MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj
+-----END PRIVATE KEY-----`;
 			
-			expect(base64).toBe('notavalidPEM');
-			// This would throw when trying to decode, which is expected behavior
+			const result = pemToArrayBuffer(pemWithWhitespace);
+			expect(result).toBeInstanceOf(ArrayBuffer);
+			expect(result.byteLength).toBeGreaterThan(0);
 		});
 	});
 
@@ -260,4 +241,3 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj
 		});
 	});
 });
-

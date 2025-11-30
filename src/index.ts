@@ -201,7 +201,7 @@ interface VertexAIResponse {
 }
 
 /** Convert PEM private key to ArrayBuffer for Web Crypto API */
-function pemToArrayBuffer(pem: string): ArrayBuffer {
+export function pemToArrayBuffer(pem: string): ArrayBuffer {
 	// Normalize line endings: strip \r (Windows) and \n (Unix), then remove all whitespace
 	const base64 = pem
 		.replace(/-----BEGIN PRIVATE KEY-----/, "")
