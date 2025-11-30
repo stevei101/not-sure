@@ -137,29 +137,34 @@ async function callCloudflareAI(prompt: string, env: Env, modelName?: string): P
 		const errorText = await response.text();
 		
 		// Check for error 2001 (Gateway configuration required)
+		// Parse JSON separately to avoid catching our thrown error
+		let errorData: any;
 		try {
-			const errorData = JSON.parse(errorText);
-			if (errorData.error && Array.isArray(errorData.error)) {
-				const gatewayError = errorData.error.find((e: any) => e.code === 2001);
-				if (gatewayError) {
-					// Security: Don't expose account ID in error message
-					const error = new Error(
-						`AI Gateway configuration required (error 2001): ${gatewayError.message}. ` +
-						`Please check the gateway configuration in the Cloudflare dashboard.`
-					);
-					(error as any).code = "config_missing" as ErrorCode;
-					// Security: Don't include sensitive details in error response
-					(error as any).details = {
-						gatewayError: { code: gatewayError.code, message: gatewayError.message },
-						// Removed: helpUrl with account ID, sensitive hints
-					};
-					throw error;
-				}
-			}
+			errorData = JSON.parse(errorText);
 		} catch {
-			// If error parsing fails, continue with generic error handling
+			// If error parsing fails, continue with generic error handling below
 		}
 		
+		// Only process if JSON parsing succeeded
+		if (errorData && errorData.error && Array.isArray(errorData.error)) {
+			const gatewayError = errorData.error.find((e: any) => e.code === 2001);
+			if (gatewayError) {
+				// Security: Don't expose account ID in error message
+				const error = new Error(
+					`AI Gateway configuration required (error 2001): ${gatewayError.message}. ` +
+					`Please check the gateway configuration in the Cloudflare dashboard.`
+				);
+				(error as any).code = "config_missing" as ErrorCode;
+				// Security: Don't include sensitive details in error response
+				(error as any).details = {
+					gatewayError: { code: gatewayError.code, message: gatewayError.message },
+					// Removed: helpUrl with account ID, sensitive hints
+				};
+				throw error;
+			}
+		}
+		
+		// Generic error handling (only reached if no specific error was thrown above)
 		const error = new Error(`Cloudflare AI error (${response.status}): ${errorText}`);
 		(error as any).code = "provider_error" as ErrorCode;
 		(error as any).details = errorText;
