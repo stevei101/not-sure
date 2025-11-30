@@ -44,8 +44,10 @@ describe('AI Worker', () => {
 		it('rejects GET requests', async () => {
 			const request = new Request('http://example.com/query', { method: 'GET' });
 			const response = await SELF.fetch(request);
-			expect(response.status).toBe(404);
-			expect(await response.text()).toBe("Only POST /query is supported");
+			expect(response.status).toBe(405);
+			const data = await response.json() as any;
+			expect(data.error).toBe("Method not allowed. Only POST is supported.");
+			expect(data.code).toBe('invalid_request');
 		});
 
 		it('validates missing prompt', async () => {
@@ -57,7 +59,7 @@ describe('AI Worker', () => {
 			const response = await SELF.fetch(request);
 			const data = await response.json() as any;
 			expect(response.status).toBe(400);
-			expect(data.error).toContain('Missing "prompt" field');
+			expect(data.error).toBe('Missing or invalid "prompt" field. Must be a non-empty string.');
 			expect(data.code).toBe('invalid_request');
 		});
 
