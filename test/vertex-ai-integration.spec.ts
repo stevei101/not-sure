@@ -5,7 +5,7 @@
  * using mocks for external dependencies (fetch, KV).
  */
 
-import { env, SELF } from 'cloudflare:test';
+import { env } from 'cloudflare:test';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import worker from '../src';
 
