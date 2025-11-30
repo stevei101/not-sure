@@ -11,6 +11,7 @@
 		"global_fetch_strictly_public"
 	],
 	"assets": {
+		"binding": "ASSETS",
 		// The path to the directory containing the built React app
 		"directory": "./dist"
 	},
@@ -35,25 +36,35 @@
 	"vars": {
 		"ACCOUNT_ID": "1d361f061ebf3d1a293900bdb815db26",
 		"AI_GATEWAY_ID": "AQ.Ab8RN6JKBAPQhVWbuiBKBT1j9r3lE0Gqj4rfeat0SIo9aQzFFw",
+		"AI_GATEWAY_NAME": "not-sure-ai-gateway",
 		"AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1",
 		"AI_GATEWAY_SKIP_PATH_CONSTRUCTION": "false",
 		"ENVIRONMENT": "staging"
 	},
 	/**
+	 * Worker Secrets (set via wrangler CLI or Cloudflare dashboard)
+	 * 
+	 * Required secrets for staging worker:
+	 * - CLOUDFLARE_API_TOKEN: Cloudflare API token for AI Gateway authentication
+	 *   Set with: wrangler secret put CLOUDFLARE_API_TOKEN --config wrangler.staging.jsonc
+	 * 
+	 * Optional secrets:
+	 * - AI_GATEWAY_AUTH_TOKEN: Gateway-specific auth token (prioritized over CLOUDFLARE_API_TOKEN)
+	 * - GEMINI_API_KEY: Google AI Studio API key (if using Google AI Studio models)
+	 * - API_KEY: API key for /query endpoint authentication
+	 * - VERTEX_AI_SERVICE_ACCOUNT_JSON: Google service account JSON (if using Vertex AI)
+	 * 
+	 * See SET_STAGING_SECRETS.md for detailed setup instructions.
+	 */
+	/**
 	 * Staging Routes
-	 * Add staging.lornu.ai or v2.lornu.ai subdomain here
-	 * Note: You'll need to configure the DNS record in Cloudflare first
+	 * Custom domain configured in Cloudflare dashboard
 	 */
 	"routes": [
-		// Uncomment and configure when ready:
-		// {
-		// 	"pattern": "staging.lornu.ai",
-		// 	"custom_domain": true
-		// },
-		// Or use workers.dev subdomain:
-		// {
-		// 	"pattern": "not-sure-staging.*.workers.dev"
-		// }
+		{
+			"pattern": "staging.lornu.ai",
+			"custom_domain": true
+		}
 	]
 }
 
