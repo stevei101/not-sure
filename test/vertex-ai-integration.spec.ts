@@ -27,26 +27,21 @@ describe('Vertex AI Integration - Endpoint Tests', () => {
 	});
 
 	describe('/status endpoint - Vertex AI configuration', () => {
-		it('should show vertexAiConfigured when config is present', async () => {
+		it('should include gemini in models when Vertex AI config is present', async () => {
 			const request = new Request('http://example.com/status');
 			const response = await worker.fetch(request, mockEnv as any);
 			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
-			expect(data.vertexAiConfigured).toBe(true);
+			expect(data.ok).toBe(true);
 			expect(data.models).toContain('gemini');
+			expect(data.models).toContain('cloudflare');
+			// Security: Sensitive fields (vertexAiConfigured, vertexAiAuthConfigured) removed
+			expect(data).not.toHaveProperty('vertexAiConfigured');
+			expect(data).not.toHaveProperty('vertexAiAuthConfigured');
 		});
 
-		it('should show vertexAiAuthConfigured when service account is present', async () => {
-			const request = new Request('http://example.com/status');
-			const response = await worker.fetch(request, mockEnv as any);
-			const data = await response.json() as any;
-
-			expect(response.status).toBe(200);
-			expect(data.vertexAiAuthConfigured).toBe(true);
-		});
-
-		it('should show vertexAiConfigured false when config is missing', async () => {
+		it('should not include gemini in models when config is missing', async () => {
 			const envWithoutConfig = {
 				...env,
 				// Missing Vertex AI config
@@ -57,24 +52,30 @@ describe('Vertex AI Integration - Endpoint Tests', () => {
 			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
-			expect(data.vertexAiConfigured).toBe(false);
-			expect(data.vertexAiAuthConfigured).toBe(false);
+			expect(data.ok).toBe(true);
 			expect(data.models).not.toContain('gemini');
+			expect(data.models).toContain('cloudflare');
+			// Security: Sensitive fields removed
+			expect(data).not.toHaveProperty('vertexAiConfigured');
+			expect(data).not.toHaveProperty('vertexAiAuthConfigured');
 		});
 
-		it('should show vertexAiAuthConfigured false when service account is missing', async () => {
-			const envWithoutAuth = {
-				...mockEnv,
-				VERTEX_AI_SERVICE_ACCOUNT_JSON: undefined,
-			};
-			
+		it('should return minimal status information (security: no sensitive IDs)', async () => {
 			const request = new Request('http://example.com/status');
-			const response = await worker.fetch(request, envWithoutAuth as any);
+			const response = await worker.fetch(request, mockEnv as any);
 			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
-			expect(data.vertexAiConfigured).toBe(true); // Config is there
-			expect(data.vertexAiAuthConfigured).toBe(false); // But auth is not
+			expect(data).toHaveProperty('ok');
+			expect(data).toHaveProperty('version');
+			expect(data).toHaveProperty('timestamp');
+			expect(data).toHaveProperty('models');
+			// Security: These fields should not be exposed
+			expect(data).not.toHaveProperty('gatewayId');
+			expect(data).not.toHaveProperty('gatewayUrl');
+			expect(data).not.toHaveProperty('vertexAiConfigured');
+			expect(data).not.toHaveProperty('vertexAiAuthConfigured');
+			expect(data).not.toHaveProperty('vertexAiTokenCached');
 		});
 	});
 
