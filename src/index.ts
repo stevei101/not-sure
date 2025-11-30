@@ -13,7 +13,7 @@
  */
 
 import { Ai } from "@cloudflare/ai";
-import type { ExecutionContext, IncomingRequestCfProperties, ExportedHandler } from "@cloudflare/workers-types";
+import type { ExecutionContext, ExportedHandler } from "@cloudflare/workers-types";
 
 type AIModel = "cloudflare" | "gemini";
 
@@ -593,7 +593,7 @@ function checkApiKey(request: Request, env: Env): boolean {
 }
 
 /** Helper: Log user query for analytics */
-function logUserQuery(request: Request, prompt: string, model: string, modelName?: string, cf?: IncomingRequestCfProperties) {
+function logUserQuery(request: Request, prompt: string, model: string, modelName?: string, cf?: any) {
 	try {
 		const logData = {
 			timestamp: new Date().toISOString(),
@@ -620,7 +620,7 @@ function logUserQuery(request: Request, prompt: string, model: string, modelName
 }
 
 export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext, cf?: IncomingRequestCfProperties) {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const corsHeaders = getCorsHeaders(request);
 
@@ -778,7 +778,7 @@ export default {
 
 			try {
 				// Log user query for analytics
-				logUserQuery(request, prompt, model, modelName, cf);
+				logUserQuery(request, prompt, model, modelName, (request as any).cf);
 
 				// 1️⃣ Try cached context from KV (cache per model+modelName+prompt combination)
 				// For Vertex AI (gemini), include service account identifier to prevent cache collision
@@ -886,4 +886,4 @@ export default {
 		// This will serve files from the dist directory
 		return env.ASSETS.fetch(request);
 	},
-} satisfies ExportedHandler<Env>;
+};
