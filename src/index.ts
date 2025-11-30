@@ -307,7 +307,12 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 	const signatureInput = `${encodedHeader}.${encodedPayload}`;
 
 	// Import private key and sign JWT
-	const privateKeyPem = serviceAccount.private_key.replace(/\\n/g, "\n");
+	// Note: JSON.parse already handles \n escape sequences in the JSON string,
+	// so serviceAccount.private_key should already contain proper newline characters.
+	// If the secret is stored with double-escaped newlines (\\n), they will be
+	// correctly converted to \n by JSON.parse, which will then be converted to
+	// actual newline characters.
+	const privateKeyPem = serviceAccount.private_key;
 	const privateKeyBuffer = pemToArrayBuffer(privateKeyPem);
 
 	// Import the private key in PKCS#8 format
