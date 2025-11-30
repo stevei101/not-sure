@@ -16,7 +16,7 @@ describe('AI Worker', () => {
 			expect(data.version).toBeDefined();
 		});
 
-		it('includes Vertex AI configuration fields', async () => {
+		it('does not expose sensitive configuration fields (security)', async () => {
 			const request = new Request<unknown, IncomingRequestCfProperties>('http://example.com/status');
 			const ctx = createExecutionContext();
 			const response = await worker.fetch(request, env, ctx);
@@ -24,10 +24,19 @@ describe('AI Worker', () => {
 
 			const data = await response.json() as any;
 			expect(response.status).toBe(200);
-			// New fields should be present (may be false if not configured)
-			expect(data).toHaveProperty('vertexAiConfigured');
-			expect(data).toHaveProperty('vertexAiAuthConfigured');
-			expect(data).toHaveProperty('vertexAiTokenCached');
+			
+			// Verify expected public fields are present
+			expect(data).toHaveProperty('ok');
+			expect(data).toHaveProperty('version');
+			expect(data).toHaveProperty('timestamp');
+			expect(data).toHaveProperty('models');
+			
+			// Security: Sensitive fields should NOT be exposed
+			expect(data).not.toHaveProperty('vertexAiConfigured');
+			expect(data).not.toHaveProperty('vertexAiAuthConfigured');
+			expect(data).not.toHaveProperty('vertexAiTokenCached');
+			expect(data).not.toHaveProperty('gatewayId');
+			expect(data).not.toHaveProperty('gatewayUrl');
 		});
 	});
 
