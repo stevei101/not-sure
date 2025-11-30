@@ -13,6 +13,7 @@
  */
 
 import { Ai } from "@cloudflare/ai";
+import type { ExecutionContext, IncomingRequestCfProperties, ExportedHandler } from "@cloudflare/workers-types";
 
 type AIModel = "cloudflare" | "gemini";
 
@@ -44,6 +45,7 @@ export interface Env {
 	AI_GATEWAY_NAME?: string; // Gateway name (for /compat endpoint) - defaults to "not-sure-ai-gateway"
 	AI_GATEWAY_URL: string;
 	AI_GATEWAY_SKIP_PATH_CONSTRUCTION?: string; // "true" or "false"
+	ENVIRONMENT?: string; // Environment identifier: "staging" or "production" (defaults to production if not set)
 	// Vertex AI configuration
 	GCP_PROJECT_ID?: string;
 	VERTEX_AI_LOCATION?: string;
@@ -509,12 +511,24 @@ async function callAI(prompt: string, model: AIModel, env: Env, modelName?: stri
 function getClientIP(request: Request): string {
 	// Cloudflare provides IP in CF-Connecting-IP header
 	const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
-	// Anonymize last octet for privacy (e.g., 192.168.1.123 -> 192.168.1.0)
-	const parts = ip.split(".");
-	if (parts.length === 4) {
-		parts[3] = "0";
-		return parts.join(".");
+	
+	// Anonymize IPv4 (e.g., 192.168.1.123 -> 192.168.1.0)
+	const ipv4Parts = ip.split(".");
+	if (ipv4Parts.length === 4) {
+		ipv4Parts[3] = "0";
+		return ipv4Parts.join(".");
 	}
+	
+	// Anonymize IPv6 (e.g., 2001:0db8:85a3:0000:0000:8a2e:0370:7334 -> 2001:0db8:85a3::)
+	if (ip.includes(":")) {
+		const ipv6Parts = ip.split(":");
+		if (ipv6Parts.length >= 4) {
+			return ipv6Parts.slice(0, 3).join(":") + "::";
+		}
+		// If the address is very short, just return "::" to anonymize
+		return "::";
+	}
+	
 	return ip;
 }
 
@@ -780,7 +794,8 @@ export default {
 						// If parsing fails, continue without client_email (backward compatible)
 					}
 				}
-				const key = await hashPrompt(cacheKeyBase, model);
+				// cacheKeyBase already includes the model, so pass empty string to avoid double prefixing
+				const key = await hashPrompt(cacheKeyBase, "");
 				
 				let cached: string | null = null;
 				try {
