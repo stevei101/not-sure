@@ -202,10 +202,13 @@ interface VertexAIResponse {
 
 /** Convert PEM private key to ArrayBuffer for Web Crypto API */
 function pemToArrayBuffer(pem: string): ArrayBuffer {
+	// Normalize line endings: strip \r (Windows) and \n (Unix), then remove all whitespace
 	const base64 = pem
 		.replace(/-----BEGIN PRIVATE KEY-----/, "")
 		.replace(/-----END PRIVATE KEY-----/, "")
-		.replace(/\s/g, "");
+		.replace(/\r/g, "") // Remove Windows carriage returns
+		.replace(/\n/g, "") // Remove Unix line feeds
+		.replace(/\s/g, ""); // Remove any remaining whitespace
 	const binaryString = atob(base64);
 	const bytes = new Uint8Array(binaryString.length);
 	for (let i = 0; i < binaryString.length; i++) {
@@ -220,7 +223,6 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
  * Implements JWT signing using Web Crypto API for Google OAuth2 authentication.
  * Tokens are cached in KV to reduce authentication overhead (tokens valid for ~1 hour).
  * 
-<<<<<<< HEAD
  * Note: We use KV storage for token caching instead of in-memory Maps because
  * Cloudflare Workers are stateless - each request runs in isolation. KV provides
  * persistent caching across requests, which is essential for OAuth2 token reuse.
@@ -232,21 +234,15 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
  * TODO: Add unit tests for JWT signing and error handling branches
  */
 async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promise<string> {
-	// Check KV cache first (tokens are valid for ~1 hour)
-	// KV is used instead of in-memory cache because Cloudflare Workers are stateless
-	const cacheKey = "vertex-ai-access-token";
-	const cachedToken = await env.RAG_KV.get(cacheKey);
-	if (cachedToken) {
-		return cachedToken;
-	}
-
-	// Parse service account JSON
+	// Parse service account JSON first to get client_email for cache key uniqueness
 	let serviceAccount: ServiceAccount;
 	try {
 		serviceAccount = JSON.parse(serviceAccountJson);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : "unknown error";
-		throw new Error(`Invalid service account JSON format: ${errorMessage}`);
+		const structuredError = new Error(`Invalid service account JSON format: ${errorMessage}`);
+		(structuredError as any).code = "config_missing" as ErrorCode;
+		throw structuredError;
 	}
 
 	if (!serviceAccount.private_key || !serviceAccount.client_email) {
@@ -254,8 +250,36 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 			!serviceAccount.private_key && "private_key",
 			!serviceAccount.client_email && "client_email",
 		].filter(Boolean);
-		throw new Error(`Service account JSON missing required fields: ${missingFields.join(", ")}`);
+		const structuredError = new Error(`Service account JSON missing required fields: ${missingFields.join(", ")}`);
+		(structuredError as any).code = "config_missing" as ErrorCode;
+		throw structuredError;
 	}
+
+	// Cache key includes client_email to prevent collision across different service accounts
+	const cacheKey = `vertex-ai-access-token:${serviceAccount.client_email}`;
+	
+	// Check KV cache first (tokens are valid for ~1 hour)
+	// KV is used instead of in-memory cache because Cloudflare Workers are stateless
+	let cachedToken: string | null = null;
+	try {
+		cachedToken = await env.RAG_KV.get(cacheKey);
+		if (cachedToken) {
+			console.log(JSON.stringify({
+				type: "token_cache_hit",
+				timestamp: new Date().toISOString(),
+				clientEmail: serviceAccount.client_email,
+			}));
+			return cachedToken;
+		}
+	} catch (error) {
+		// Log KV read errors but continue to fetch new token
+		console.error(JSON.stringify({
+			type: "token_cache_read_error",
+			timestamp: new Date().toISOString(),
+			error: error instanceof Error ? error.message : "unknown error",
+		}));
+	}
+
 
 	// Create JWT for Google OAuth2 token exchange
 	const now = Math.floor(Date.now() / 1000);
@@ -283,7 +307,12 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 	const signatureInput = `${encodedHeader}.${encodedPayload}`;
 
 	// Import private key and sign JWT
-	const privateKeyPem = serviceAccount.private_key.replace(/\\n/g, "\n");
+	// Note: JSON.parse already handles \n escape sequences in the JSON string,
+	// so serviceAccount.private_key should already contain proper newline characters.
+	// If the secret is stored with double-escaped newlines (\\n), they will be
+	// correctly converted to \n by JSON.parse, which will then be converted to
+	// actual newline characters.
+	const privateKeyPem = serviceAccount.private_key;
 	const privateKeyBuffer = pemToArrayBuffer(privateKeyPem);
 
 	// Import the private key in PKCS#8 format
@@ -338,9 +367,27 @@ async function getGoogleAccessToken(serviceAccountJson: string, env: Env): Promi
 		throw error;
 	}
 
-	// Cache the token (use expires_in if provided, otherwise default to 50 minutes to be safe)
-	const cacheTtl = tokenData.expires_in ? Math.max(tokenData.expires_in - 600, 3000) : 3000; // Subtract 10 min buffer, min 50 min
-	await env.RAG_KV.put(cacheKey, tokenData.access_token, { expirationTtl: cacheTtl });
+	// Cache the token (subtract 10 minutes from expires_in for safety margin)
+	// Guard against negative TTL: ensure minimum 1 minute (60 seconds) to respect shorter token lifetimes
+	const expiresIn = tokenData.expires_in || 3600; // Default to 1 hour if not provided
+	const safeExpires = Math.max(expiresIn - 600, 60); // Minimum 1 minute
+	
+	try {
+		await env.RAG_KV.put(cacheKey, tokenData.access_token, { expirationTtl: safeExpires });
+		console.log(JSON.stringify({
+			type: "token_cache_write",
+			timestamp: new Date().toISOString(),
+			clientEmail: serviceAccount.client_email,
+			ttl: safeExpires,
+		}));
+	} catch (error) {
+		// Log KV write errors but don't fail the request (token is still valid)
+		console.error(JSON.stringify({
+			type: "token_cache_write_error",
+			timestamp: new Date().toISOString(),
+			error: error instanceof Error ? error.message : "unknown error",
+		}));
+	}
 
 	return tokenData.access_token;
 }
@@ -720,9 +767,32 @@ export default {
 				logUserQuery(request, prompt, model, modelName, cf);
 
 				// 1️⃣ Try cached context from KV (cache per model+modelName+prompt combination)
-				const cacheKey = modelName ? `${model}:${modelName}:${prompt}` : `${model}:${prompt}`;
-				const key = await hashPrompt(cacheKey, model);
-				const cached = await env.RAG_KV.get(key);
+				// For Vertex AI (gemini), include service account identifier to prevent cache collision
+				// across different auth contexts
+				let cacheKeyBase = modelName ? `${model}:${modelName}:${prompt}` : `${model}:${prompt}`;
+				if (model === "gemini" && env.VERTEX_AI_SERVICE_ACCOUNT_JSON) {
+					try {
+						const sa = JSON.parse(env.VERTEX_AI_SERVICE_ACCOUNT_JSON);
+						if (sa.client_email) {
+							cacheKeyBase = `${cacheKeyBase}:${sa.client_email}`;
+						}
+					} catch {
+						// If parsing fails, continue without client_email (backward compatible)
+					}
+				}
+				const key = await hashPrompt(cacheKeyBase, model);
+				
+				let cached: string | null = null;
+				try {
+					cached = await env.RAG_KV.get(key);
+				} catch (error) {
+					// Log KV read errors but continue to fetch new answer
+					console.error(JSON.stringify({
+						type: "query_cache_read_error",
+						timestamp: new Date().toISOString(),
+						error: error instanceof Error ? error.message : "unknown error",
+					}));
+				}
 
 				// If cached, return immediately
 				if (cached) {
@@ -756,7 +826,16 @@ export default {
 				//️ 3️⃣ Cache the answer for future identical prompts (1‑week TTL)
 				// Only cache non-empty answers
 				if (answer && answer.trim().length > 0) {
-					await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+					try {
+						await env.RAG_KV.put(key, answer, { expirationTtl: 60 * 60 * 24 * 7 });
+					} catch (error) {
+						// Log KV write errors but don't fail the request (answer is still returned)
+						console.error(JSON.stringify({
+							type: "query_cache_write_error",
+							timestamp: new Date().toISOString(),
+							error: error instanceof Error ? error.message : "unknown error",
+						}));
+					}
 				}
 
 				return new Response(JSON.stringify({ answer, cached: false, model, modelName: modelName || undefined }), {

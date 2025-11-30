@@ -15,7 +15,7 @@
 		"directory": "./dist"
 	},
 	"observability": {
-		"enabled": true,
+		"enabled": true
 	},
 	"kv_namespaces": [
 		{
