@@ -218,26 +218,8 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj
 		});
 	});
 
-	describe('Error Code Assignment', () => {
-		it('should assign config_missing error code for missing configuration', () => {
-			const error = new Error("Vertex AI configuration missing");
-			(error as any).code = "config_missing";
-			
-			expect((error as any).code).toBe("config_missing");
-		});
-
-		it('should assign auth_error error code for authentication failures', () => {
-			const error = new Error("Failed to get access token");
-			(error as any).code = "auth_error";
-			
-			expect((error as any).code).toBe("auth_error");
-		});
-
-		it('should assign provider_error error code for API errors', () => {
-			const error = new Error("Vertex AI error");
-			(error as any).code = "provider_error";
-			
-			expect((error as any).code).toBe("provider_error");
-		});
-	});
+	// Note: Error code assignment is tested in test/vertex-ai-integration.spec.ts
+	// which tests actual error flows from the application (e.g., missing config
+	// returns config_missing code). These tautological tests were removed as they
+	// only tested TypeScript's ability to assign properties, not application logic.
 });
