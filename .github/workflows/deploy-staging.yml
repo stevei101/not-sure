@@ -32,5 +32,5 @@ jobs:
       - name: Deploy to Cloudflare Staging
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-        run: bunx wrangler deploy --config wrangler.staging.jsonc
+        run: bunx wrangler@4.51.0 deploy --config wrangler.staging.jsonc
 
