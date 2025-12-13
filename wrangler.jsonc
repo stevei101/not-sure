@@ -62,13 +62,9 @@
 	 */
 	"routes": [
 		{
-			"pattern": "lornu.ai",
-			"custom_domain": true
-		},
-		{
-			"pattern": "www.lornu.ai",
-			"custom_domain": true
-		}
+                        "pattern": "rag.lornu.ai",
+                        "custom_domain": true
+                }
 	]
 	/**
 	 * Note: Use secrets to store sensitive data.
