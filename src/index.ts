@@ -540,12 +540,13 @@ function getClientIP(request: Request): string {
 /** Helper: Build CORS headers based on request origin */
 function getCorsHeaders(request: Request): Record<string, string> | null {
 	// Allowed origins for CORS (restrictive for security)
-	const allowedOrigins = [
-		"https://lornu.ai",
-		"https://www.lornu.ai",
-		// Add staging environment if needed:
-		// "https://staging.lornu.ai",
-	];
+	        const allowedOrigins = [
+                "https://lornu.ai",
+                "https://www.lornu.ai",
+                "https://rag.lornu.ai",
+                // Add staging environment if needed:
+                // "https://staging.lornu.ai",
+        ];
 
 	const origin = request.headers.get("Origin");
 
@@ -579,7 +580,7 @@ function checkApiKey(request: Request, env: Env): boolean {
 	const origin = request.headers.get("Origin");
 	const referer = request.headers.get("Referer");
 	
-	const allowedOrigins = ["https://lornu.ai", "https://www.lornu.ai"];
+	const allowedOrigins = ["https://lornu.ai", "https://www.lornu.ai", "https://rag.lornu.ai"];
 	
 	const isSameOrigin =
 		// Origin header matches allowed origins (browser sets this for cross-origin requests)
